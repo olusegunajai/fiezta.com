@@ -1,0 +1,139 @@
+{
+  "entities": {
+    "Agency": {
+      "title": "Agency",
+      "description": "A travel agency tenant in the multi-tenant system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "logo": { "type": "string" },
+        "subscription": { "type": "string", "enum": ["free", "pro", "enterprise"] },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "theme": { "type": "string", "enum": ["light", "dark", "custom"] },
+            "primaryColor": { "type": "string" },
+            "webhookUrl": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "subscription"]
+    },
+    "User": {
+      "title": "User",
+      "description": "System user with role-based access control and CRM data.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "agencyId": { "type": "string", "description": "ID of the agency this user belongs to" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "agent", "accountant", "support", "client"] },
+        "photoURL": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "address": { "type": "string" },
+        "loyaltyPoints": { "type": "integer" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "agencyId", "email", "role"]
+    },
+    "Package": {
+      "title": "Travel Package",
+      "description": "A travel destination package offered by Fiezta.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "destination": { "type": "string" },
+        "price": { "type": "number" },
+        "duration": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "title", "destination", "price"]
+    },
+    "Booking": {
+      "title": "Booking Request",
+      "description": "A client booking or service request.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "packageId": { "type": "string" },
+        "packageName": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "pending", "processing", "approved", "completed", "cancelled"] },
+        "travelDate": { "type": "string", "format": "date" },
+        "totalAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["unpaid", "partial", "paid", "refunded"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "clientId", "status", "createdAt"]
+    },
+    "SocialPost": {
+      "title": "Social Media Post",
+      "description": "A scheduled social media post.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "content": { "type": "string" },
+        "platforms": { "type": "array", "items": { "type": "string" } },
+        "scheduledAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["scheduled", "published", "failed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "content", "platforms", "scheduledAt"]
+    },
+    "AuditLog": {
+      "title": "Audit Log",
+      "description": "Security audit log for system actions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string" },
+        "resourceType": { "type": "string" },
+        "resourceId": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "userId", "action", "timestamp"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Discount coupon for bookings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "code": { "type": "string" },
+        "discountType": { "type": "string", "enum": ["percentage", "fixed"] },
+        "discountValue": { "type": "number" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["agencyId", "code", "discountType", "discountValue"]
+    }
+  },
+  "firestore": {
+    "/agencies/{id}": { "schema": "Agency", "description": "Agencies." },
+    "/users/{uid}": { "schema": "User", "description": "User profiles." },
+    "/packages/{packageId}": { "schema": "Package", "description": "Travel packages." },
+    "/bookings/{bookingId}": { "schema": "Booking", "description": "Bookings." },
+    "/social_posts/{id}": { "schema": "SocialPost", "description": "Social media posts." },
+    "/audit_logs/{id}": { "schema": "AuditLog", "description": "Audit logs." },
+    "/coupons/{id}": { "schema": "Coupon", "description": "Coupons." }
+  }
+}

@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getAgencyId() {
+      return getUserData().agencyId;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        getUserData().role == 'super_admin' || 
+        (request.auth.token.email == "dbest4real2009@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isAgencyAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+
+    function isStaff() {
+      return isAuthenticated() && getUserData().role in ['admin', 'agent', 'accountant', 'support'];
+    }
+
+    function belongsToAgency(agencyId) {
+      return isAuthenticated() && getAgencyId() == agencyId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.clientId;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /agencies/{agencyId} {
+      allow read: if belongsToAgency(agencyId) || isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || (isStaff() && getAgencyId() == resource.data.agencyId) || isSuperAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == uid;
+      allow update: if isAuthenticated() && (request.auth.uid == uid || (isAgencyAdmin() && getAgencyId() == resource.data.agencyId) || isSuperAdmin());
+    }
+
+    match /packages/{packageId} {
+      allow read: if true; // Publicly viewable
+      allow write: if (isAgencyAdmin() && getAgencyId() == request.resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.clientId || (isStaff() && getAgencyId() == resource.data.agencyId) || isSuperAdmin());
+      allow create: if isAuthenticated() && getAgencyId() == request.resource.data.agencyId;
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.clientId || (isStaff() && getAgencyId() == resource.data.agencyId) || isSuperAdmin());
+      allow delete: if (isAgencyAdmin() && getAgencyId() == resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /social_posts/{id} {
+      allow read, write: if (isStaff() && getAgencyId() == (resource == null ? request.resource.data.agencyId : resource.data.agencyId)) || isSuperAdmin();
+    }
+
+    match /audit_logs/{id} {
+      allow read: if (isAgencyAdmin() && getAgencyId() == resource.data.agencyId) || isSuperAdmin();
+      allow create: if isAuthenticated();
+    }
+
+    match /coupons/{id} {
+      allow read: if true; // Clients can check coupons
+      allow write: if (isAgencyAdmin() && getAgencyId() == (resource == null ? request.resource.data.agencyId : resource.data.agencyId)) || isSuperAdmin();
+    }
+
+    match /documents/{id} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.clientId || (isStaff() && getAgencyId() == resource.data.agencyId) || isSuperAdmin());
+      allow create: if isAuthenticated() && getAgencyId() == request.resource.data.agencyId;
+      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.clientId || (isStaff() && getAgencyId() == resource.data.agencyId) || isSuperAdmin());
+    }
+
+    match /messages/{id} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId || isSuperAdmin());
+      allow create: if isAuthenticated() && getAgencyId() == request.resource.data.agencyId;
+    }
+  }
+}
