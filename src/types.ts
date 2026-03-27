@@ -1,11 +1,50 @@
 export interface WPPost {
-  id: number;
+  id: string;
   agencyId: string;
   title: string;
+  content: string;
   excerpt: string;
   date: string;
   status: 'publish' | 'draft';
-  link: string;
+  author?: string;
+  featuredImage?: string;
+  link?: string;
+}
+
+export interface Page {
+  id: string;
+  agencyId: string;
+  title: string;
+  slug: string;
+  content: string;
+  status: 'publish' | 'draft';
+  createdAt: string;
+}
+
+export interface MenuItem {
+  label: string;
+  url: string;
+  order: number;
+}
+
+export interface Menu {
+  id: string;
+  agencyId: string;
+  title: string;
+  location: string;
+  items: MenuItem[];
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface Service {
+  id: string;
+  agencyId: string;
+  name: string;
+  description: string;
+  price: number;
+  category: 'visa' | 'insurance' | 'tour' | 'other';
+  createdAt: string;
 }
 
 export interface WPConfig {
@@ -54,7 +93,17 @@ export interface CalendarEvent {
   color?: string;
 }
 
-export type UserRole = 'super_admin' | 'admin' | 'agent' | 'accountant' | 'support' | 'client';
+export type UserRole = 'super_admin' | 'admin' | 'agent' | 'accountant' | 'support' | 'client' | string;
+
+export interface Role {
+  id: string;
+  agencyId: string;
+  name: string;
+  description?: string;
+  permissions: string[];
+  isSystem?: boolean;
+  createdAt: string;
+}
 
 export interface UserProfile {
   uid: string;
@@ -367,6 +416,61 @@ export interface PaymentTransaction {
   status: 'success' | 'failed';
   method: string;
   createdAt: string;
+}
+
+export interface Vlog {
+  id: string;
+  agencyId: string;
+  title: string;
+  description: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+  category: string;
+  tags: string[];
+  views: number;
+  publishedAt: string;
+  status: 'published' | 'draft';
+  createdAt: string;
+}
+
+export interface Theme {
+  id: string;
+  agencyId: string;
+  name: string;
+  description?: string;
+  config: {
+    primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
+    backgroundColor: string;
+    textColor: string;
+    fontFamily: string;
+    borderRadius: string;
+    glassmorphism: boolean;
+  };
+  isAdminTheme: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface SiteSettings {
+  id: string;
+  agencyId: string;
+  siteName: string;
+  siteDescription: string;
+  logoUrl?: string;
+  faviconUrl?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+  socialLinks?: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    linkedin?: string;
+    youtube?: string;
+  };
+  updatedAt: string;
 }
 
 export interface ActivityLog {

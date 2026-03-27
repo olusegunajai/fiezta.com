@@ -25,6 +25,8 @@ import { auth, db } from './firebase';
 import { 
   UserProfile, 
   UserRole, 
+  Role,
+  Theme,
   TravelPackage, 
   Booking, 
   BookingStatus, 
@@ -44,13 +46,16 @@ import {
   CalendarEvent,
   SocialPost,
   AuditLog,
-  Coupon
+  Coupon,
+  Menu
 } from './types';
 import { cn, formatCurrency } from './lib/utils';
 import { handleFirestoreError, OperationType } from './lib/error-handler';
 import { encryptData, decryptData, logActivity } from './lib/security';
 import { exportToCSV, exportToPDF } from './lib/export';
 import { SocialDashboard } from './components/SocialDashboard';
+import { RoleManager } from './components/RoleManager';
+import { GenericCRUD } from './components/GenericCRUD';
 import { 
   LayoutDashboard, 
   Globe, 
@@ -68,7 +73,7 @@ import {
   Clock4,
   AlertCircle,
   ChevronRight,
-  Menu,
+  Menu as MenuIcon,
   X,
   Sparkles,
   Send,
@@ -83,6 +88,7 @@ import {
   FileCheck,
   CheckSquare,
   ShieldCheck,
+  Shield,
   PieChart,
   Home,
   MapPin,
@@ -118,7 +124,10 @@ import {
   CalendarDays,
   ExternalLink,
   RefreshCw,
-  Layers
+  Layers,
+  Play,
+  Database,
+  Palette
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -134,8 +143,102 @@ import {
 } from 'recharts';
 import { generateItinerary, getTravelAdvice, generateText } from './services/geminiService';
 import { BookingWizard } from './components/BookingWizard';
+import { VlogManagement } from './components/VlogManagement';
+import { ThemeManager } from './components/ThemeManager';
 
 // --- Components ---
+
+const taskFields = [
+  { name: 'title', label: 'Title', type: 'text', required: true },
+  { name: 'description', label: 'Description', type: 'textarea' },
+  { name: 'status', label: 'Status', type: 'select', options: ['todo', 'in_progress', 'done'] },
+  { name: 'dueDate', label: 'Due Date', type: 'date' },
+];
+
+const packageFields = [
+  { name: 'title', label: 'Title', type: 'text', required: true },
+  { name: 'description', label: 'Description', type: 'textarea' },
+  { name: 'destination', label: 'Destination', type: 'text', required: true },
+  { name: 'price', label: 'Price', type: 'number', required: true },
+  { name: 'duration', label: 'Duration', type: 'text' },
+  { name: 'imageUrl', label: 'Image URL', type: 'text' },
+  { name: 'status', label: 'Status', type: 'select', options: ['active', 'draft', 'archived'] },
+];
+
+const pageFields = [
+  { name: 'title', label: 'Title', type: 'text', required: true },
+  { name: 'slug', label: 'Slug', type: 'text', required: true },
+  { name: 'content', label: 'Content (HTML)', type: 'html' },
+  { name: 'status', label: 'Status', type: 'select', options: ['publish', 'draft'] },
+];
+
+const menuFields = [
+  { name: 'title', label: 'Title', type: 'text', required: true },
+  { name: 'location', label: 'Location', type: 'select', options: ['header', 'footer', 'sidebar'] },
+  { name: 'items', label: 'Menu Items (JSON)', type: 'json', defaultValue: [] },
+  { name: 'isActive', label: 'Is Active', type: 'boolean', defaultValue: true },
+];
+
+const postFields = [
+  { name: 'title', label: 'Title', type: 'text', required: true },
+  { name: 'excerpt', label: 'Excerpt', type: 'textarea' },
+  { name: 'content', label: 'Content (HTML)', type: 'html' },
+  { name: 'status', label: 'Status', type: 'select', options: ['publish', 'draft'] },
+  { name: 'featuredImage', label: 'Featured Image', type: 'text' },
+];
+
+const serviceFields = [
+  { name: 'name', label: 'Name', type: 'text', required: true },
+  { name: 'description', label: 'Description (HTML)', type: 'html' },
+  { name: 'price', label: 'Price', type: 'number', required: true },
+  { name: 'category', label: 'Category', type: 'select', options: ['visa', 'insurance', 'tour', 'other'] },
+];
+
+const invoiceFields = [
+  { name: 'bookingId', label: 'Booking ID', type: 'text' },
+  { name: 'clientId', label: 'Client ID', type: 'text' },
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'dueDate', label: 'Date', type: 'date' },
+  { name: 'status', label: 'Status', type: 'select', options: ['draft', 'sent', 'paid', 'overdue'] },
+];
+
+const clientFields = [
+  { name: 'displayName', label: 'Name', type: 'text', required: true },
+  { name: 'email', label: 'Email', type: 'text', required: true },
+  { name: 'phoneNumber', label: 'Phone', type: 'text' },
+  { name: 'address', label: 'Address', type: 'textarea' },
+];
+
+const staffFields = [
+  { name: 'displayName', label: 'Name', type: 'text', required: true },
+  { name: 'email', label: 'Email', type: 'text', required: true },
+  { name: 'role', label: 'Role', type: 'select', options: ['agent', 'accountant', 'support', 'admin'] },
+  { name: 'phoneNumber', label: 'Phone', type: 'text' },
+];
+
+const siteSettingsFields = [
+  { name: 'siteName', label: 'Site Name', type: 'text', required: true },
+  { name: 'siteDescription', label: 'Site Description (HTML)', type: 'html' },
+  { name: 'logoUrl', label: 'Logo', type: 'image' },
+  { name: 'faviconUrl', label: 'Favicon', type: 'image' },
+  { name: 'contactEmail', label: 'Contact Email', type: 'text' },
+  { name: 'contactPhone', label: 'Contact Phone', type: 'text' },
+  { name: 'address', label: 'Address (HTML)', type: 'html' },
+];
+
+const customFormFields = [
+  { name: 'title', label: 'Form Title', type: 'text', required: true },
+  { name: 'fields', label: 'Form Content (HTML)', type: 'html' },
+  { name: 'submitUrl', label: 'Submit URL', type: 'text' },
+];
+
+const popupCampaignFields = [
+  { name: 'title', label: 'Campaign Title', type: 'text', required: true },
+  { name: 'type', label: 'Type', type: 'select', options: ['discount', 'offer', 'lead_capture'] },
+  { name: 'content', label: 'Content (HTML)', type: 'html' },
+  { name: 'trigger', label: 'Trigger', type: 'select', options: ['exit_intent', 'time_delay', 'scroll_depth'] },
+  { name: 'isActive', label: 'Is Active', type: 'boolean', defaultValue: true },
+];
 
 const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
   <button
@@ -143,7 +246,7 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label:
     className={cn(
       "flex items-center gap-3 w-full px-4 py-3 rounded-lg transition-all duration-200",
       active 
-        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200/50" 
+        ? "bg-primary text-white shadow-lg shadow-primary/20" 
         : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
     )}
   >
@@ -181,20 +284,54 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [agencyId, setAgencyId] = useState<string | null>(null);
+  const [activeTheme, setActiveTheme] = useState<Theme | null>(null);
+
+  // Fetch Active Theme
+  useEffect(() => {
+    if (!agencyId) return;
+    const themeQuery = query(
+      collection(db, 'themes'), 
+      where('agencyId', '==', agencyId), 
+      where('isActive', '==', true),
+      limit(1)
+    );
+    const unsubscribe = onSnapshot(themeQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const themeData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Theme;
+        setActiveTheme(themeData);
+        applyTheme(themeData);
+      }
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'themes'));
+    return () => unsubscribe();
+  }, [agencyId]);
+
+  const applyTheme = (theme: Theme) => {
+    const root = document.documentElement;
+    const config = theme.config;
+    root.style.setProperty('--primary', config.primaryColor);
+    root.style.setProperty('--secondary', config.secondaryColor);
+    root.style.setProperty('--accent', config.accentColor);
+    root.style.setProperty('--background', config.backgroundColor);
+    root.style.setProperty('--foreground', config.textColor);
+    root.style.setProperty('--radius', config.borderRadius);
+    root.style.fontFamily = config.fontFamily;
+  };
   const [packages, setPackages] = useState<TravelPackage[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
   const [transport, setTransport] = useState<Transport[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [documents, setDocuments] = useState<TravelDocument[]>([]);
+  const [menus, setMenus] = useState<Menu[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [clients, setClients] = useState<UserProfile[]>([]);
   const [staff, setStaff] = useState<UserProfile[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
   const [messages, setMessages] = useState<InternalMessage[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [agencyId, setAgencyId] = useState<string | null>(null);
   
   // WordPress & Marketing State
   const [wpPosts, setWpPosts] = useState<WPPost[]>([]);
@@ -208,11 +345,12 @@ export default function App() {
   
   // AI Chat State
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ id: string, role: 'user' | 'ai', text: string }[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   
   // Booking Modal State
   const [selectedPackage, setSelectedPackage] = useState<TravelPackage | null>(null);
+  const [selectedCrudEntity, setSelectedCrudEntity] = useState<any>(null);
   const [bookingDate, setBookingDate] = useState('');
   const [bookingNotes, setBookingNotes] = useState('');
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -243,6 +381,24 @@ export default function App() {
     };
     fetchItinerary();
   }, [selectedBookingDetail, invoices, documents]);
+
+  useEffect(() => {
+    if (!agencyId) return;
+    const q = query(collection(db, 'menus'), where('agencyId', '==', agencyId), where('isActive', '==', true));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setMenus(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Menu[]);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'menus'));
+    return () => unsubscribe();
+  }, [agencyId]);
+
+  useEffect(() => {
+    if (!agencyId) return;
+    const q = query(collection(db, 'roles'), where('agencyId', '==', agencyId));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setAvailableRoles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Role[]);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'roles'));
+    return () => unsubscribe();
+  }, [agencyId]);
 
   const handleUpdateBookingStatus = async (bookingId: string, newStatus: BookingStatus) => {
     try {
@@ -447,16 +603,25 @@ export default function App() {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data() as UserProfile;
-            setProfile(userData);
-            setAgencyId(userData.agencyId);
+            // Bootstrap super admin role if email matches
+            if (firebaseUser.email === 'dbest4real2009@gmail.com' && userData.role !== 'super_admin') {
+              const updatedProfile = { ...userData, role: 'super_admin' as UserRole };
+              await updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'super_admin' });
+              setProfile(updatedProfile);
+              setAgencyId(userData.agencyId);
+            } else {
+              setProfile(userData);
+              setAgencyId(userData.agencyId);
+            }
           } else {
             const defaultAgencyId = 'agency_001'; // Default for new users in this demo
+            const isSuperAdmin = firebaseUser.email === 'dbest4real2009@gmail.com';
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               agencyId: defaultAgencyId,
               email: firebaseUser.email || '',
               displayName: firebaseUser.displayName || 'User',
-              role: 'client',
+              role: isSuperAdmin ? 'super_admin' : 'client',
               photoURL: firebaseUser.photoURL || undefined,
               loyaltyPoints: 0,
               referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -491,7 +656,7 @@ export default function App() {
     // Fetch Packages
     const packagesUnsub = onSnapshot(query(collection(db, 'packages'), where('agencyId', '==', agencyId)), (snapshot) => {
       setPackages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TravelPackage)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'packages'));
 
     // Fetch Bookings
     let bookingsQuery;
@@ -503,17 +668,17 @@ export default function App() {
     
     const bookingsUnsub = onSnapshot(bookingsQuery, (snapshot) => {
       setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'bookings'));
 
     // Fetch Accommodations
     const accUnsub = onSnapshot(query(collection(db, 'accommodations'), where('agencyId', '==', agencyId)), (snapshot) => {
       setAccommodations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Accommodation)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'accommodations'));
 
     // Fetch Transports
     const transUnsub = onSnapshot(query(collection(db, 'transport'), where('agencyId', '==', agencyId)), (snapshot) => {
       setTransport(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transport)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'transport'));
 
     // Fetch Invoices
     const invQuery = (profile.role === 'super_admin' || profile.role === 'admin' || profile.role === 'accountant') 
@@ -521,7 +686,7 @@ export default function App() {
       : query(collection(db, 'invoices'), where('agencyId', '==', agencyId), where('clientId', '==', profile.uid));
     const invUnsub = onSnapshot(invQuery, (snapshot) => {
       setInvoices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'invoices'));
 
     // Fetch Documents
     const docQuery = (profile.role === 'super_admin' || profile.role === 'admin' || profile.role === 'agent') 
@@ -529,19 +694,19 @@ export default function App() {
       : query(collection(db, 'documents'), where('agencyId', '==', agencyId), where('clientId', '==', profile.uid));
     const docUnsub = onSnapshot(docQuery, (snapshot) => {
       setDocuments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TravelDocument)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'documents'));
 
     // Fetch Tasks
     const taskUnsub = onSnapshot(query(collection(db, 'tasks'), where('agencyId', '==', agencyId)), (snapshot) => {
       setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'tasks'));
 
     // Fetch Staff
     let staffUnsub = () => {};
     if (profile.role === 'super_admin' || profile.role === 'admin') {
       staffUnsub = onSnapshot(query(collection(db, 'users'), where('agencyId', '==', agencyId), where('role', '!=', 'client')), (snapshot) => {
         setStaff(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
-      });
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'users/staff'));
     }
 
     // Fetch Messages
@@ -553,14 +718,14 @@ export default function App() {
     );
     const msgUnsub = onSnapshot(msgQuery, (snapshot) => {
       setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InternalMessage)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'messages'));
 
     // Fetch Audit Logs
     let logsUnsub = () => {};
     if (profile.role === 'super_admin' || profile.role === 'admin') {
       logsUnsub = onSnapshot(query(collection(db, 'audit_logs'), where('agencyId', '==', agencyId), orderBy('timestamp', 'desc'), limit(50)), (snapshot) => {
         setAuditLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditLog)));
-      });
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'audit_logs'));
     }
 
     // Fetch Subscribers
@@ -568,7 +733,7 @@ export default function App() {
     if (profile.role === 'super_admin' || profile.role === 'admin') {
       subUnsub = onSnapshot(query(collection(db, 'subscribers'), where('agencyId', '==', agencyId)), (snapshot) => {
         setSubscribers(snapshot.docs.map(doc => ({ email: doc.id, ...doc.data() } as NewsletterSubscriber)));
-      });
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'subscribers'));
     }
 
     // Fetch Clients
@@ -576,38 +741,38 @@ export default function App() {
     if (profile.role === 'super_admin' || profile.role === 'admin' || profile.role === 'agent') {
       clientsUnsub = onSnapshot(query(collection(db, 'users'), where('agencyId', '==', agencyId), where('role', '==', 'client')), (snapshot) => {
         setClients(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
-      });
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'users/clients'));
     }
 
     // Fetch WP Posts
     const wpPostsUnsub = onSnapshot(query(collection(db, 'wp_posts'), where('agencyId', '==', agencyId)), (snapshot) => {
       setWpPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'wp_posts'));
 
     // Fetch Custom Forms
     const formsUnsub = onSnapshot(query(collection(db, 'custom_forms'), where('agencyId', '==', agencyId)), (snapshot) => {
       setCustomForms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomForm)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'custom_forms'));
 
     // Fetch Popup Campaigns
     const popupsUnsub = onSnapshot(query(collection(db, 'popup_campaigns'), where('agencyId', '==', agencyId)), (snapshot) => {
       setPopupCampaigns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PopupCampaign)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'popup_campaigns'));
 
     // Fetch Calendar Events
     const calendarUnsub = onSnapshot(query(collection(db, 'calendar_events'), where('agencyId', '==', agencyId)), (snapshot) => {
       setCalendarEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CalendarEvent)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'calendar_events'));
 
     // Fetch Social Posts
     const socialUnsub = onSnapshot(query(collection(db, 'social_posts'), where('agencyId', '==', agencyId), orderBy('scheduledAt', 'desc')), (snapshot) => {
       setSocialPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialPost)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'social_posts'));
 
     // Fetch Coupons
     const couponsUnsub = onSnapshot(query(collection(db, 'coupons'), where('agencyId', '==', agencyId)), (snapshot) => {
       setCoupons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Coupon)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'coupons'));
 
     return () => {
       packagesUnsub();
@@ -677,14 +842,16 @@ export default function App() {
     e.preventDefault();
     if (!chatInput.trim()) return;
 
+    const userMsgId = Math.random().toString(36).substring(2, 15);
     const userMsg = chatInput;
-    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setChatMessages(prev => [...prev, { id: userMsgId, role: 'user', text: userMsg }]);
     setChatInput('');
     setIsAiLoading(true);
 
     try {
       const aiResponse = await getTravelAdvice(userMsg);
-      setChatMessages(prev => [...prev, { role: 'ai', text: aiResponse || 'Sorry, I couldn\'t help with that.' }]);
+      const aiMsgId = Math.random().toString(36).substring(2, 15);
+      setChatMessages(prev => [...prev, { id: aiMsgId, role: 'ai', text: aiResponse || 'Sorry, I couldn\'t help with that.' }]);
     } catch (error) {
       console.error("AI Chat failed", error);
     } finally {
@@ -699,13 +866,59 @@ export default function App() {
 
   // Seed data for new modules if empty
   useEffect(() => {
-    if (profile?.role === 'admin') {
+    if (profile?.role === 'admin' || profile?.role === 'super_admin') {
       const seedData = async () => {
+        // Seed Menus
+        if (menus.length === 0) {
+          const initialMenus = [
+            {
+              agencyId: profile.agencyId,
+              title: 'Main Header',
+              location: 'header',
+              isActive: true,
+              items: [
+                { label: 'Destinations', url: '#destinations', order: 1 },
+                { label: 'Vlogs', url: '#vlogs', order: 2 },
+                { label: 'Services', url: '#services', order: 3 },
+                { label: 'About', url: '#about', order: 4 }
+              ],
+              createdAt: new Date().toISOString()
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Company Footer',
+              location: 'footer-company',
+              isActive: true,
+              items: [
+                { label: 'About Us', url: '#', order: 1 },
+                { label: 'Careers', url: '#', order: 2 },
+                { label: 'Privacy Policy', url: '#', order: 3 }
+              ],
+              createdAt: new Date().toISOString()
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Support Footer',
+              location: 'footer-support',
+              isActive: true,
+              items: [
+                { label: 'Help Center', url: '#', order: 1 },
+                { label: 'Contact Us', url: '#', order: 2 },
+                { label: 'Status', url: '#', order: 3 }
+              ],
+              createdAt: new Date().toISOString()
+            }
+          ];
+          for (const menu of initialMenus) {
+            await addDoc(collection(db, 'menus'), menu);
+          }
+        }
+
         // Seed WP Posts
         if (wpPosts.length === 0) {
           const posts = [
-            { title: 'Top 10 Destinations for 2026', excerpt: 'Discover the most breathtaking places to visit this year...', date: new Date().toISOString(), status: 'publish', link: '#' },
-            { title: 'How to Plan Your Dream Wedding Abroad', excerpt: 'Everything you need to know about destination weddings...', date: new Date().toISOString(), status: 'publish', link: '#' }
+            { agencyId: profile.agencyId, title: 'Top 10 Destinations for 2026', excerpt: 'Discover the most breathtaking places to visit this year...', date: new Date().toISOString(), status: 'publish', link: '#' },
+            { agencyId: profile.agencyId, title: 'How to Plan Your Dream Wedding Abroad', excerpt: 'Everything you need to know about destination weddings...', date: new Date().toISOString(), status: 'publish', link: '#' }
           ];
           for (const post of posts) {
             await addDoc(collection(db, 'wp_posts'), post);
@@ -715,6 +928,7 @@ export default function App() {
         // Seed Custom Forms
         if (customForms.length === 0) {
           await addDoc(collection(db, 'custom_forms'), {
+            agencyId: profile.agencyId,
             title: 'Lead Capture - Summer 2026',
             fields: [
               { label: 'Full Name', type: 'text', required: true },
@@ -728,6 +942,7 @@ export default function App() {
         // Seed Popup Campaigns
         if (popupCampaigns.length === 0) {
           await addDoc(collection(db, 'popup_campaigns'), {
+            agencyId: profile.agencyId,
             title: 'Early Bird Discount',
             content: 'Get 15% off your next booking when you sign up today!',
             type: 'discount',
@@ -740,8 +955,8 @@ export default function App() {
         // Seed Calendar Events
         if (calendarEvents.length === 0) {
           const events = [
-            { title: 'Santorini Group Trip', start: new Date(2026, 2, 28).toISOString(), end: new Date(2026, 3, 5).toISOString(), type: 'booking', description: 'Group of 12' },
-            { title: 'Staff Training', start: new Date(2026, 2, 27, 10, 0).toISOString(), end: new Date(2026, 2, 27, 12, 0).toISOString(), type: 'staff_schedule', description: 'New CMS features' }
+            { agencyId: profile.agencyId, title: 'Santorini Group Trip', start: new Date(2026, 2, 28).toISOString(), end: new Date(2026, 3, 5).toISOString(), type: 'booking', description: 'Group of 12' },
+            { agencyId: profile.agencyId, title: 'Staff Training', start: new Date(2026, 2, 27, 10, 0).toISOString(), end: new Date(2026, 2, 27, 12, 0).toISOString(), type: 'staff_schedule', description: 'New CMS features' }
           ];
           for (const event of events) {
             await addDoc(collection(db, 'calendar_events'), event);
@@ -750,7 +965,7 @@ export default function App() {
       };
       seedData();
     }
-  }, [profile, wpPosts.length, customForms.length, popupCampaigns.length, calendarEvents.length]);
+  }, [profile, wpPosts.length, customForms.length, popupCampaigns.length, calendarEvents.length, menus.length]);
 
   const onBookingSuccess = () => {
     setIsBookingModalOpen(false);
@@ -759,10 +974,11 @@ export default function App() {
   };
 
   const handleCreatePackage = async () => {
-    if (profile?.role !== 'admin') return;
+    if (profile?.role !== 'admin' && profile?.role !== 'super_admin') return;
     
     const samplePackages = [
       {
+        agencyId: profile.agencyId,
         title: "Dubai Luxury Experience",
         description: "Experience the ultimate luxury in Dubai with private desert safaris, Burj Khalifa tours, and yacht cruises.",
         destination: "Dubai, UAE",
@@ -773,6 +989,7 @@ export default function App() {
         createdAt: new Date().toISOString()
       },
       {
+        agencyId: profile.agencyId,
         title: "Italian Riviera Escape",
         description: "Explore the stunning coastline of Cinque Terre and Portofino with wine tasting and private boat tours.",
         destination: "Italy",
@@ -783,6 +1000,7 @@ export default function App() {
         createdAt: new Date().toISOString()
       },
       {
+        agencyId: profile.agencyId,
         title: "Parisian Romance",
         description: "A romantic getaway in the heart of Paris, including Seine cruises and Michelin-starred dining.",
         destination: "France",
@@ -795,15 +1013,15 @@ export default function App() {
     ];
 
     const sampleAccommodations = [
-      { name: "Burj Al Arab", type: "hotel", location: "Dubai", pricePerNight: 1500, amenities: ["Spa", "Private Beach", "Butler Service"], availability: true },
-      { name: "Villa d'Este", type: "villa", location: "Lake Como, Italy", pricePerNight: 2000, amenities: ["Pool", "Garden", "Lake View"], availability: true },
-      { name: "Hôtel Plaza Athénée", type: "hotel", location: "Paris", pricePerNight: 1200, amenities: ["Fine Dining", "Spa", "City View"], availability: true }
+      { agencyId: profile.agencyId, name: "Burj Al Arab", type: "hotel", location: "Dubai", pricePerNight: 1500, amenities: ["Spa", "Private Beach", "Butler Service"], availability: true },
+      { agencyId: profile.agencyId, name: "Villa d'Este", type: "villa", location: "Lake Como, Italy", pricePerNight: 2000, amenities: ["Pool", "Garden", "Lake View"], availability: true },
+      { agencyId: profile.agencyId, name: "Hôtel Plaza Athénée", type: "hotel", location: "Paris", pricePerNight: 1200, amenities: ["Fine Dining", "Spa", "City View"], availability: true }
     ];
 
     const sampleTransports = [
-      { type: "car", model: "Rolls Royce Phantom", capacity: 4, pricePerDay: 800, availability: true },
-      { type: "private_jet", model: "Gulfstream G650", capacity: 14, pricePerDay: 15000, availability: true },
-      { type: "shuttle", model: "Mercedes V-Class", capacity: 7, pricePerDay: 300, availability: true }
+      { agencyId: profile.agencyId, type: "car", model: "Rolls Royce Phantom", capacity: 4, pricePerDay: 800, availability: true },
+      { agencyId: profile.agencyId, type: "private_jet", model: "Gulfstream G650", capacity: 14, pricePerDay: 15000, availability: true },
+      { agencyId: profile.agencyId, type: "shuttle", model: "Mercedes V-Class", capacity: 7, pricePerDay: 300, availability: true }
     ];
 
     try {
@@ -814,13 +1032,13 @@ export default function App() {
         await addDoc(collection(db, 'accommodations'), acc);
       }
       for (const trans of sampleTransports) {
-        await addDoc(collection(db, 'transports'), trans);
+        await addDoc(collection(db, 'transport'), trans);
       }
       
       // Seed some tasks for admin
       const sampleTasks = [
-        { title: "Review new booking requests", assignedTo: profile.uid, status: "todo", priority: "high", dueDate: new Date().toISOString(), createdAt: new Date().toISOString() },
-        { title: "Update Dubai package pricing", assignedTo: profile.uid, status: "in_progress", priority: "medium", dueDate: new Date().toISOString(), createdAt: new Date().toISOString() }
+        { agencyId: profile.agencyId, title: "Review new booking requests", assignedTo: profile.uid, status: "todo", priority: "high", dueDate: new Date().toISOString(), createdAt: new Date().toISOString() },
+        { agencyId: profile.agencyId, title: "Update Dubai package pricing", assignedTo: profile.uid, status: "in_progress", priority: "medium", dueDate: new Date().toISOString(), createdAt: new Date().toISOString() }
       ];
       for (const task of sampleTasks) {
         await addDoc(collection(db, 'tasks'), task);
@@ -855,9 +1073,9 @@ export default function App() {
             </div>
             
             <div className="hidden md:flex items-center gap-8">
-              <a href="#destinations" className="text-sm font-semibold text-slate-600 hover:text-[#D4AF37] transition-colors">Destinations</a>
-              <a href="#services" className="text-sm font-semibold text-slate-600 hover:text-[#D4AF37] transition-colors">Services</a>
-              <a href="#about" className="text-sm font-semibold text-slate-600 hover:text-[#D4AF37] transition-colors">About</a>
+              {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map(item => (
+                <a key={item.label} href={item.url} className="text-sm font-semibold text-slate-600 hover:text-[#D4AF37] transition-colors">{item.label}</a>
+              ))}
               <button 
                 onClick={handleLogin}
                 className="px-6 py-2.5 bg-slate-900 text-white rounded-full text-sm font-bold hover:bg-[#D4AF37] transition-all shadow-lg shadow-slate-200"
@@ -867,7 +1085,7 @@ export default function App() {
             </div>
             
             <button className="md:hidden p-2 text-slate-600">
-              <Menu size={24} />
+              <MenuIcon size={24} />
             </button>
           </div>
         </nav>
@@ -956,6 +1174,55 @@ export default function App() {
                 <h3 className="text-5xl font-black mb-2 text-[#D4AF37]">24/7</h3>
                 <p className="text-slate-400 font-medium">AI Support</p>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Vlogs Section */}
+        <section id="vlogs" className="py-32 bg-white">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex items-end justify-between mb-16">
+              <div className="max-w-2xl">
+                <h2 className="text-4xl lg:text-6xl font-black tracking-tighter text-slate-900 mb-6 uppercase">Travel <span className="text-[#D4AF37]">Vlogs</span></h2>
+                <p className="text-xl text-slate-500">Experience the journey through our lens. Expert guides, hidden gems, and luxury tours.</p>
+              </div>
+              <button className="hidden md:flex items-center gap-2 text-[#D4AF37] font-bold group">
+                View All Vlogs <ChevronRight size={20} className="transition-transform group-hover:translate-x-1" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[
+                { title: "Luxury Maldives Escape", duration: "12:45", views: "1.2k", img: "https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&w=800&q=80" },
+                { title: "Hidden Gems of Tokyo", duration: "15:20", views: "3.5k", img: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=800&q=80" },
+                { title: "Safari in Serengeti", duration: "22:10", views: "8.9k", img: "https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&w=800&q=80" }
+              ].map((vlog, idx) => (
+                <motion.div 
+                  key={idx}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="group cursor-pointer"
+                >
+                  <div className="relative aspect-video rounded-[32px] overflow-hidden mb-6 shadow-lg">
+                    <img src={vlog.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={vlog.title} referrerPolicy="no-referrer" />
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                      <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform">
+                        <Play size={24} className="text-white fill-white" />
+                      </div>
+                    </div>
+                    <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-bold text-white">
+                      {vlog.duration}
+                    </div>
+                  </div>
+                  <h4 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-[#D4AF37] transition-colors">{vlog.title}</h4>
+                  <div className="flex items-center gap-4 text-slate-400 text-sm font-medium">
+                    <span className="flex items-center gap-1.5"><Eye size={14} /> {vlog.views} views</span>
+                    <span className="flex items-center gap-1.5"><Clock size={14} /> 2 days ago</span>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
         </section>
@@ -1104,17 +1371,17 @@ export default function App() {
               <div>
                 <h5 className="font-bold text-slate-900 mb-6 uppercase tracking-widest text-xs">Company</h5>
                 <ul className="space-y-4">
-                  <li><a href="#" className="text-slate-500 hover:text-[#D4AF37] transition-colors">About Us</a></li>
-                  <li><a href="#" className="text-slate-500 hover:text-[#D4AF37] transition-colors">Careers</a></li>
-                  <li><a href="#" className="text-slate-500 hover:text-[#D4AF37] transition-colors">Privacy Policy</a></li>
+                  {menus.find(m => m.location === 'footer-company')?.items.sort((a, b) => a.order - b.order).map(item => (
+                    <li key={item.label}><a href={item.url} className="text-slate-500 hover:text-[#D4AF37] transition-colors">{item.label}</a></li>
+                  ))}
                 </ul>
               </div>
               <div>
                 <h5 className="font-bold text-slate-900 mb-6 uppercase tracking-widest text-xs">Support</h5>
                 <ul className="space-y-4">
-                  <li><a href="#" className="text-slate-500 hover:text-[#D4AF37] transition-colors">Help Center</a></li>
-                  <li><a href="#" className="text-slate-500 hover:text-[#D4AF37] transition-colors">Contact Us</a></li>
-                  <li><a href="#" className="text-slate-500 hover:text-[#D4AF37] transition-colors">Status</a></li>
+                  {menus.find(m => m.location === 'footer-support')?.items.sort((a, b) => a.order - b.order).map(item => (
+                    <li key={item.label}><a href={item.url} className="text-slate-500 hover:text-[#D4AF37] transition-colors">{item.label}</a></li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -1181,6 +1448,12 @@ export default function App() {
           <SidebarItem 
             icon={MousePointer2} 
             label="Forms & Popups" 
+            active={activeTab === 'forms_popups'} 
+            onClick={() => setActiveTab('forms_popups')} 
+          />
+          <SidebarItem 
+            icon={Zap} 
+            label="Marketing" 
             active={activeTab === 'marketing'} 
             onClick={() => setActiveTab('marketing')} 
           />
@@ -1191,10 +1464,34 @@ export default function App() {
             onClick={() => setActiveTab('cms')} 
           />
           <SidebarItem 
+            icon={Activity} 
+            label="Posts" 
+            active={activeTab === 'posts'} 
+            onClick={() => setActiveTab('posts')} 
+          />
+          <SidebarItem 
+            icon={FileText} 
+            label="Pages" 
+            active={activeTab === 'pages'} 
+            onClick={() => setActiveTab('pages')} 
+          />
+          <SidebarItem 
+            icon={MenuIcon} 
+            label="Menus" 
+            active={activeTab === 'menus'} 
+            onClick={() => setActiveTab('menus')} 
+          />
+          <SidebarItem 
             icon={Smartphone} 
             label="Social Scheduler" 
             active={activeTab === 'social'} 
             onClick={() => setActiveTab('social')} 
+          />
+          <SidebarItem 
+            icon={Youtube} 
+            label="Vlog Manager" 
+            active={activeTab === 'vlogs'} 
+            onClick={() => setActiveTab('vlogs')} 
           />
           
           <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Management</div>
@@ -1210,6 +1507,12 @@ export default function App() {
             label="Transport" 
             active={activeTab === 'transport'} 
             onClick={() => setActiveTab('transport')} 
+          />
+          <SidebarItem 
+            icon={Briefcase} 
+            label="Services" 
+            active={activeTab === 'services'} 
+            onClick={() => setActiveTab('services')} 
           />
           <SidebarItem 
             icon={FileText} 
@@ -1246,6 +1549,12 @@ export default function App() {
                 onClick={() => setActiveTab('staff')} 
               />
               <SidebarItem 
+                icon={Shield} 
+                label="Role Manager" 
+                active={activeTab === 'roles'} 
+                onClick={() => setActiveTab('roles')} 
+              />
+              <SidebarItem 
                 icon={CheckSquare} 
                 label="Tasks" 
                 active={activeTab === 'tasks'} 
@@ -1263,6 +1572,12 @@ export default function App() {
                 active={activeTab === 'payments'} 
                 onClick={() => setActiveTab('payments')} 
               />
+              <SidebarItem 
+                icon={Database} 
+                label="Data Management" 
+                active={activeTab === 'crud'} 
+                onClick={() => setActiveTab('crud')} 
+              />
             </>
           )}
 
@@ -1274,16 +1589,28 @@ export default function App() {
             onClick={() => setActiveTab('ai')} 
           />
           <SidebarItem 
+            icon={Palette} 
+            label="Theme Manager" 
+            active={activeTab === 'themes'} 
+            onClick={() => setActiveTab('themes')} 
+          />
+          <SidebarItem 
             icon={Mail} 
             label="Newsletter" 
             active={activeTab === 'newsletter'} 
             onClick={() => setActiveTab('newsletter')} 
           />
           <SidebarItem 
+            icon={UserIcon} 
+            label="My Profile" 
+            active={activeTab === 'profile'} 
+            onClick={() => setActiveTab('profile')} 
+          />
+          <SidebarItem 
             icon={Settings} 
-            label="Settings" 
-            active={activeTab === 'settings'} 
-            onClick={() => setActiveTab('settings')} 
+            label="Site Settings" 
+            active={activeTab === 'site_settings'} 
+            onClick={() => setActiveTab('site_settings')} 
           />
         </nav>
 
@@ -1318,9 +1645,9 @@ export default function App() {
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
             >
-              {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+              {isSidebarOpen ? <X size={20} /> : <MenuIcon size={20} />}
             </button>
-            <h2 className="text-lg font-bold text-slate-900 capitalize">{activeTab}</h2>
+            <h2 className="text-lg font-bold text-slate-900 capitalize">{activeTab.replace('_', ' ')}</h2>
           </div>
           
           <div className="flex items-center gap-4">
@@ -1434,7 +1761,7 @@ export default function App() {
                   <div className="lg:col-span-2 bg-white p-8 rounded-[32px] shadow-sm border border-slate-100">
                     <div className="flex items-center justify-between mb-8">
                       <div>
-                        <h3 className="text-xl font-black tracking-tight text-slate-900">Revenue Growth</h3>
+                    <h3 className="text-xl font-black tracking-tight text-foreground">Revenue Growth</h3>
                         <p className="text-slate-500 text-sm">Monthly performance tracking.</p>
                       </div>
                       <div className="flex gap-2">
@@ -1519,7 +1846,7 @@ export default function App() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="bg-slate-50/50">
+                        <tr className="bg-background/50">
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Client</th>
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Package</th>
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
@@ -1565,73 +1892,139 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-slate-900">Travel Packages</h3>
-                  {profile?.role === 'admin' ? (
-                    <button 
-                      onClick={handleCreatePackage}
-                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-                    >
-                      <Plus size={20} />
-                      Seed Packages
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2 text-slate-400 text-sm italic">
-                      <AlertCircle size={16} />
-                      Only admins can manage packages
+                {(profile?.role === 'super_admin' || profile?.role === 'admin') ? (
+                  <GenericCRUD 
+                    entityName="Package" 
+                    collectionName="packages" 
+                    agencyId={agencyId || ''} 
+                    fields={packageFields as any}
+                    displayFields={['title', 'destination', 'price', 'status']}
+                  />
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-2xl font-bold text-slate-900">Travel Packages</h3>
                     </div>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {packages.length > 0 ? packages.map((pkg) => (
-                    <motion.div 
-                      key={pkg.id}
-                      whileHover={{ y: -5 }}
-                      className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden group"
-                    >
-                      <div className="relative h-48 overflow-hidden">
-                        <img 
-                          src={pkg.imageUrl || `https://picsum.photos/seed/${pkg.destination}/800/600`} 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                          alt={pkg.title} 
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-indigo-600">
-                          {pkg.duration}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {packages.length > 0 ? packages.map((pkg) => (
+                        <motion.div 
+                          key={pkg.id}
+                          whileHover={{ y: -5 }}
+                          className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden group"
+                        >
+                          <div className="relative h-48 overflow-hidden">
+                            <img 
+                              src={pkg.imageUrl || `https://picsum.photos/seed/${pkg.destination}/800/600`} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                              alt={pkg.title} 
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-indigo-600">
+                              {pkg.duration}
+                            </div>
+                          </div>
+                          <div className="p-6">
+                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                              <Globe size={14} />
+                              <span className="text-xs font-bold uppercase tracking-wider">{pkg.destination}</span>
+                            </div>
+                            <h4 className="text-lg font-bold text-slate-900 mb-2">{pkg.title}</h4>
+                            <p className="text-sm text-slate-500 line-clamp-2 mb-4">{pkg.description}</p>
+                            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                              <span className="text-xl font-bold text-slate-900">{formatCurrency(pkg.price)}</span>
+                              <button 
+                                onClick={() => {
+                                  setSelectedPackage(pkg);
+                                  setIsBookingModalOpen(true);
+                                }}
+                                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
+                              >
+                                Book Now
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )) : (
+                        <div className="col-span-full py-20 text-center">
+                          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                            <Briefcase size={32} />
+                          </div>
+                          <h4 className="text-lg font-bold text-slate-900">No packages found</h4>
+                          <p className="text-slate-500">Start by adding your first travel package.</p>
                         </div>
-                      </div>
-                      <div className="p-6">
-                        <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                          <Globe size={14} />
-                          <span className="text-xs font-bold uppercase tracking-wider">{pkg.destination}</span>
-                        </div>
-                        <h4 className="text-lg font-bold text-slate-900 mb-2">{pkg.title}</h4>
-                        <p className="text-sm text-slate-500 line-clamp-2 mb-4">{pkg.description}</p>
-                        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                          <span className="text-xl font-bold text-slate-900">{formatCurrency(pkg.price)}</span>
-                          <button 
-                            onClick={() => {
-                              setSelectedPackage(pkg);
-                              setIsBookingModalOpen(true);
-                            }}
-                            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
-                          >
-                            Book Now
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )) : (
-                    <div className="col-span-full py-20 text-center">
-                      <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
-                        <Briefcase size={32} />
-                      </div>
-                      <h4 className="text-lg font-bold text-slate-900">No packages found</h4>
-                      <p className="text-slate-500">Start by adding your first travel package.</p>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'pages' && (
+              <motion.div 
+                key="pages"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <GenericCRUD 
+                  entityName="Page" 
+                  collectionName="pages" 
+                  agencyId={agencyId || ''} 
+                  fields={pageFields as any}
+                  displayFields={['title', 'slug', 'status']}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'menus' && (
+              <motion.div 
+                key="menus"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <GenericCRUD 
+                  entityName="Menu" 
+                  collectionName="menus" 
+                  agencyId={agencyId || ''} 
+                  fields={menuFields as any}
+                  displayFields={['title', 'location', 'isActive']}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'posts' && (
+              <motion.div 
+                key="posts"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <GenericCRUD 
+                  entityName="Post" 
+                  collectionName="posts" 
+                  agencyId={agencyId || ''} 
+                  fields={postFields as any}
+                  displayFields={['title', 'status']}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'services' && (
+              <motion.div 
+                key="services"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <GenericCRUD 
+                  entityName="Service" 
+                  collectionName="services" 
+                  agencyId={agencyId || ''} 
+                  fields={serviceFields as any}
+                  displayFields={['name', 'category', 'price']}
+                />
               </motion.div>
             )}
 
@@ -1667,9 +2060,9 @@ export default function App() {
                     </div>
                   )}
                   
-                  {chatMessages.map((msg, idx) => (
+                  {chatMessages.map((msg) => (
                     <motion.div 
-                      key={idx}
+                      key={msg.id}
                       initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       className={cn(
@@ -2108,215 +2501,25 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'ai' && (
-              <motion.div 
-                key="ai"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="h-[calc(100vh-12rem)] flex flex-col gap-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">AI Travel Assistant</h1>
-                    <p className="text-slate-500 text-sm">Intelligent itinerary generation and admin support.</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Gemini 3 Flash Online</span>
-                  </div>
-                </div>
 
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-0">
-                  <div className="lg:col-span-3 bg-white rounded-[32px] border border-slate-100 shadow-sm flex flex-col overflow-hidden">
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                      <div className="flex gap-4">
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-indigo-100">
-                          <Sparkles size={20} />
-                        </div>
-                        <div className="bg-slate-50 p-4 rounded-2xl rounded-tl-none max-w-[80%]">
-                          <p className="text-sm text-slate-700 leading-relaxed">
-                            Hello! I'm your Fiezta AI Assistant. I can help you generate travel itineraries, optimize budgets, or provide admin insights. What can I do for you today?
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Example AI Response */}
-                      <div className="flex gap-4 flex-row-reverse">
-                        <div className="w-10 h-10 rounded-2xl bg-[#D4AF37] flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-100">
-                          <UserIcon size={20} />
-                        </div>
-                        <div className="bg-indigo-600 p-4 rounded-2xl rounded-tr-none max-w-[80%] text-white">
-                          <p className="text-sm leading-relaxed">
-                            Generate a 3-day luxury itinerary for a couple visiting Santorini.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-4">
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shrink-0">
-                          <Sparkles size={20} />
-                        </div>
-                        <div className="bg-slate-50 p-6 rounded-2xl rounded-tl-none max-w-[90%] space-y-4">
-                          <div className="flex items-center gap-2 text-indigo-600 font-black text-sm uppercase tracking-widest">
-                            <Plane size={16} />
-                            Santorini Luxury Escape
-                          </div>
-                          <div className="space-y-3">
-                            <div className="p-3 bg-white rounded-xl border border-slate-100">
-                              <span className="text-[10px] font-black text-indigo-600 uppercase">Day 1: Oia Sunset & Fine Dining</span>
-                              <p className="text-xs text-slate-500 mt-1">Private transfer to Canaves Oia Luxury Resort. Afternoon sailing on a private catamaran. Dinner at Lycabettus Restaurant.</p>
-                            </div>
-                            <div className="p-3 bg-white rounded-xl border border-slate-100">
-                              <span className="text-[10px] font-black text-indigo-600 uppercase">Day 2: Wine Tasting & Caldera Views</span>
-                              <p className="text-xs text-slate-500 mt-1">Guided tour of Santo Wines. Private infinity pool relaxation. Sunset cocktails at Franco's Bar.</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-6 border-t border-slate-100 bg-slate-50/30">
-                      <div className="relative">
-                        <input 
-                          type="text" 
-                          placeholder="Ask AI to generate an itinerary or report..."
-                          className="w-full pl-6 pr-16 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-sm"
-                        />
-                        <button className="absolute right-2 top-2 p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100">
-                          <Send size={20} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
-                      <h3 className="text-lg font-black text-slate-900 mb-4">Quick Actions</h3>
-                      <div className="space-y-3">
-                        {[
-                          { label: 'Generate Itinerary', icon: MapIcon },
-                          { label: 'Budget Optimization', icon: DollarSign },
-                          { label: 'Pending Bookings', icon: Clock },
-                          { label: 'Revenue Report', icon: BarChart3 }
-                        ].map((action, idx) => {
-                          const Icon = action.icon;
-                          return (
-                            <button key={idx} className="w-full flex items-center gap-3 p-3 rounded-2xl border border-slate-50 hover:border-indigo-100 hover:bg-indigo-50/30 transition-all group">
-                              <div className="p-2 rounded-xl bg-slate-50 group-hover:bg-white text-slate-400 group-hover:text-indigo-600 transition-all">
-                                <Icon size={18} />
-                              </div>
-                              <span className="text-sm font-bold text-slate-600 group-hover:text-slate-900">{action.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-900 p-6 rounded-[32px] text-white">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 rounded-xl bg-white/10">
-                          <Zap size={20} className="text-amber-400" />
-                        </div>
-                        <h3 className="text-lg font-black">AI Insights</h3>
-                      </div>
-                      <p className="text-slate-400 text-xs leading-relaxed mb-4">
-                        "Bookings for Santorini are up 24% this month. Consider launching a targeted promotion for luxury villas to maximize revenue."
-                      </p>
-                      <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full w-2/3 bg-amber-400"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
             {activeTab === 'invoices' && (
               <motion.div 
                 key="invoices"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-slate-900">Invoices & Billing</h3>
-                </div>
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50/50">
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Invoice ID</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Due Date</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {invoices.map((inv) => (
-                        <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 text-sm font-mono text-slate-500">#{inv.id.slice(0, 8)}</td>
-                          <td className="px-6 py-4 text-sm text-slate-600">{new Date(inv.dueDate).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 text-sm font-bold text-slate-900">{formatCurrency(inv.amount)}</td>
-                          <td className="px-6 py-4">
-                            <span className={cn(
-                              "px-2 py-1 rounded-lg text-xs font-bold",
-                              inv.status === 'paid' ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50"
-                            )}>
-                              {inv.status.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button className="text-indigo-600 font-bold text-sm hover:underline">View PDF</button>
-                          </td>
-                        </tr>
-                      ))}
-                      {invoices.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-slate-500">No invoices found.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                <GenericCRUD 
+                  entityName="Invoice" 
+                  collectionName="invoices" 
+                  agencyId={agencyId || ''} 
+                  fields={invoiceFields as any}
+                  displayFields={['bookingId', 'amount', 'status', 'dueDate']}
+                />
               </motion.div>
             )}
 
-            {activeTab === 'documents' && (
-              <motion.div 
-                key="documents"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-slate-900">My Documents</h3>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">
-                    <Plus size={20} />
-                    Upload Document
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {documents.map((doc) => (
-                    <div key={doc.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center">
-                      <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center mb-4">
-                        <FileText size={32} />
-                      </div>
-                      <h4 className="text-sm font-bold text-slate-900 truncate w-full">{doc.fileName}</h4>
-                      <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">{doc.type}</p>
-                      <button className="mt-4 w-full py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100 transition-all">
-                        Download
-                      </button>
-                    </div>
-                  ))}
-                  {documents.length === 0 && (
-                    <div className="col-span-full py-12 text-center text-slate-500">No documents uploaded yet.</div>
-                  )}
-                </div>
-              </motion.div>
-            )}
+
 
             {activeTab === 'staff' && (
               <motion.div 
@@ -2324,168 +2527,44 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">Staff Management</h1>
-                    <p className="text-slate-500 text-sm">Manage roles, assign tasks, and track performance.</p>
-                  </div>
-                  <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
-                    <UserPlus size={20} />
-                    Add Staff Member
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {staff.map((member) => (
-                    <div key={member.uid} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all">
-                      <div className="flex items-center gap-4 mb-6">
-                        <img 
-                          src={member.photoURL || `https://ui-avatars.com/api/?name=${member.displayName}`} 
-                          className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-50"
-                          alt={member.displayName}
-                        />
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900 leading-tight">{member.displayName}</h3>
-                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">{member.role.replace('_', ' ')}</p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="bg-slate-50 p-3 rounded-2xl">
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Bookings</p>
-                          <p className="text-lg font-black text-slate-900">{member.performanceMetrics?.bookingsHandled || 0}</p>
-                        </div>
-                        <div className="bg-slate-50 p-3 rounded-2xl">
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Rating</p>
-                          <p className="text-lg font-black text-emerald-600">{member.performanceMetrics?.customerRating || 5.0}★</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <button className="w-full py-2.5 bg-indigo-50 text-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2">
-                          <CheckSquare size={16} />
-                          Assign Task
-                        </button>
-                        <button className="w-full py-2.5 bg-slate-50 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
-                          <MessageSquare size={16} />
-                          Send Message
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <GenericCRUD 
+                  entityName="Staff" 
+                  collectionName="users" 
+                  agencyId={agencyId || ''} 
+                  fields={staffFields as any}
+                  displayFields={['displayName', 'email', 'role']}
+                  fixedFilters={{ role: ['agent', 'accountant', 'support', 'admin'] }}
+                />
               </motion.div>
             )}
-            {activeTab === 'crm' && (
+
+            {activeTab === 'roles' && (
               <motion.div 
-                key="clients"
+                key="roles"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-slate-900">Client Management (CRM)</h3>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-white rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-200">
-                    <Plus size={20} />
-                    Add Client
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Clients</p>
-                    <p className="text-3xl font-black text-slate-900">{clients.length}</p>
-                  </div>
-                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Active Bookings</p>
-                    <p className="text-3xl font-black text-[#D4AF37]">{bookings.filter(b => b.status !== 'completed' && b.status !== 'cancelled').length}</p>
-                  </div>
-                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
-                    <p className="text-3xl font-black text-emerald-600">{formatCurrency(bookings.reduce((acc, b) => acc + b.paidAmount, 0))}</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
-                  <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                    <div className="relative w-full max-w-md">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                      <input 
-                        type="text" 
-                        placeholder="Search clients by name, email or preferences..."
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50/50">
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Client</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Preferences</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">AI Insights</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {clients.map((client) => (
-                        <tr key={client.uid} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <img src={client.photoURL || `https://ui-avatars.com/api/?name=${client.displayName}`} className="w-10 h-10 rounded-xl" alt="" />
-                              <div>
-                                <span className="block text-sm font-bold text-slate-900">{client.displayName}</span>
-                                <span className="block text-[10px] text-slate-400 font-medium">{client.email}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-wrap gap-1">
-                              {client.preferences?.destinations?.slice(0, 2).map((d, i) => (
-                                <span key={i} className="text-[9px] font-bold bg-amber-50 text-[#D4AF37] px-1.5 py-0.5 rounded uppercase">{d}</span>
-                              ))}
-                              {client.preferences?.budget && (
-                                <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{client.preferences.budget}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="max-w-[200px]">
-                              <p className="text-[11px] text-slate-500 line-clamp-2 italic">
-                                {client.aiInsights || "No insights generated yet."}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={cn(
-                              "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border",
-                              client.role === 'admin' ? "bg-indigo-50 text-indigo-600 border-indigo-100" : "bg-slate-50 text-slate-500 border-slate-100"
-                            )}>
-                              {client.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button 
-                                onClick={() => generateAIInsights(client)}
-                                className="p-2 text-slate-400 hover:text-[#D4AF37] transition-colors"
-                                title="Generate AI Insights"
-                              >
-                                <Sparkles size={16} />
-                              </button>
-                              <button className="p-2 text-slate-400 hover:text-[#D4AF37] transition-colors">
-                                <Edit2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <RoleManager agencyId={agencyId} />
+              </motion.div>
+            )}
+            {activeTab === 'clients' && (
+              <motion.div 
+                key="clients"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <GenericCRUD 
+                  entityName="Client" 
+                  collectionName="users" 
+                  agencyId={agencyId || ''} 
+                  fields={clientFields as any}
+                  displayFields={['displayName', 'email', 'phoneNumber']}
+                  fixedFilters={{ role: 'client' }}
+                />
               </motion.div>
             )}
 
@@ -2495,45 +2574,14 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-slate-900">Staff Tasks</h3>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">
-                    <Plus size={20} />
-                    New Task
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {tasks.map((task) => (
-                    <div key={task.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <span className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
-                          task.priority === 'high' ? "text-rose-600 bg-rose-50" : "text-amber-600 bg-amber-50"
-                        )}>
-                          {task.priority} Priority
-                        </span>
-                        <span className="text-xs text-slate-400">{new Date(task.dueDate).toLocaleDateString()}</span>
-                      </div>
-                      <h4 className="text-lg font-bold text-slate-900 mb-2">{task.title}</h4>
-                      <p className="text-sm text-slate-500 mb-4">{task.description || 'No description provided.'}</p>
-                      <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "w-2 h-2 rounded-full",
-                            task.status === 'done' ? "bg-emerald-500" : task.status === 'in_progress' ? "bg-blue-500" : "bg-slate-300"
-                          )}></div>
-                          <span className="text-xs font-bold text-slate-600 uppercase">{task.status.replace('_', ' ')}</span>
-                        </div>
-                        <button className="text-indigo-600 font-bold text-sm hover:underline">Update</button>
-                      </div>
-                    </div>
-                  ))}
-                  {tasks.length === 0 && (
-                    <div className="col-span-full py-12 text-center text-slate-500">No tasks assigned.</div>
-                  )}
-                </div>
+                <GenericCRUD 
+                  entityName="Task" 
+                  collectionName="tasks" 
+                  agencyId={agencyId || ''} 
+                  fields={taskFields as any}
+                  displayFields={['title', 'status', 'dueDate']}
+                />
               </motion.div>
             )}
 
@@ -2762,12 +2810,89 @@ export default function App() {
             )}
 
             {activeTab === 'social' && (
-              <SocialDashboard agencyId="agency_123" />
+              <SocialDashboard agencyId={agencyId!} />
             )}
 
+            {activeTab === 'vlogs' && (
+              <VlogManagement agencyId={agencyId!} />
+            )}
+
+            {activeTab === 'themes' && (
+              <ThemeManager agencyId={agencyId!} />
+            )}
+
+            {activeTab === 'crud' && (
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[
+                    { name: 'Destinations', collection: 'destinations', fields: [
+                      { name: 'name', label: 'Name', type: 'text', required: true },
+                      { name: 'description', label: 'Description', type: 'textarea' },
+                      { name: 'imageUrl', label: 'Image URL', type: 'url' }
+                    ], display: ['name', 'description'] },
+                    { name: 'Coupons', collection: 'coupons', fields: [
+                      { name: 'code', label: 'Code', type: 'text', required: true },
+                      { name: 'discount', label: 'Discount %', type: 'number', required: true },
+                      { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
+                      { name: 'isActive', label: 'Active', type: 'boolean' }
+                    ], display: ['code', 'discount', 'isActive'] },
+                    { name: 'Subscribers', collection: 'subscribers', fields: [
+                      { name: 'email', label: 'Email', type: 'text', required: true },
+                      { name: 'status', label: 'Status', type: 'select', options: ['active', 'unsubscribed'] }
+                    ], display: ['email', 'status'] }
+                  ].map((entity) => (
+                    <button
+                      key={entity.name}
+                      onClick={() => setSelectedCrudEntity(entity)}
+                      className="p-8 bg-white rounded-[32px] border border-slate-100 hover:border-indigo-600 hover:shadow-xl hover:shadow-indigo-50 transition-all text-left group"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-slate-50 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center mb-6 transition-all">
+                        <Database size={24} />
+                      </div>
+                      <h3 className="text-xl font-black text-slate-900 mb-2">{entity.name}</h3>
+                      <p className="text-sm text-slate-500">Manage all {entity.name.toLowerCase()} records in the database.</p>
+                    </button>
+                  ))}
+                </div>
+
+                {selectedCrudEntity && (
+                  <div className="mt-12 pt-12 border-t border-slate-100">
+                    <GenericCRUD 
+                      agencyId={agencyId!}
+                      entityName={selectedCrudEntity.name}
+                      collectionName={selectedCrudEntity.collection}
+                      fields={selectedCrudEntity.fields as any}
+                      displayFields={selectedCrudEntity.display}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'site_settings' && (
+              <motion.div 
+                key="site_settings"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <div className="space-y-8">
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">Site Settings</h1>
+                    <p className="text-slate-500 text-sm">Manage your agency's branding, contact information, and general site configuration.</p>
+                  </div>
+                  <GenericCRUD 
+                    entityName="Site Setting" 
+                    collectionName="site_settings" 
+                    agencyId={agencyId || ''} 
+                    fields={siteSettingsFields as any}
+                    displayFields={['siteName', 'contactEmail', 'contactPhone']}
+                  />
+                </div>
+              </motion.div>
+            )}
             {activeTab === 'audit' && (
               <motion.div 
-                key="audit"
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
@@ -2855,6 +2980,51 @@ export default function App() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'forms_popups' && (
+              <motion.div 
+                key="forms_popups"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-8"
+              >
+                <div>
+                  <h1 className="text-2xl font-black tracking-tighter text-slate-900">Forms & Popups</h1>
+                  <p className="text-slate-500 text-sm">Create and manage your lead capture forms and dynamic popup campaigns.</p>
+                </div>
+
+                <div className="space-y-12">
+                  <section>
+                    <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                      <FileText size={20} className="text-indigo-600" />
+                      Custom Forms
+                    </h3>
+                    <GenericCRUD 
+                      entityName="Form" 
+                      collectionName="custom_forms" 
+                      agencyId={agencyId || ''} 
+                      fields={customFormFields as any}
+                      displayFields={['title', 'createdAt']}
+                    />
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                      <MousePointer2 size={20} className="text-amber-500" />
+                      Popup Campaigns
+                    </h3>
+                    <GenericCRUD 
+                      entityName="Popup" 
+                      collectionName="popup_campaigns" 
+                      agencyId={agencyId || ''} 
+                      fields={popupCampaignFields as any}
+                      displayFields={['title', 'type', 'trigger', 'isActive']}
+                    />
+                  </section>
                 </div>
               </motion.div>
             )}
@@ -3080,9 +3250,9 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'settings' && (
+            {activeTab === 'profile' && (
               <motion.div 
-                key="settings"
+                key="profile"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}

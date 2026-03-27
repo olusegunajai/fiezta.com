@@ -13,23 +13,27 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function hasUserData() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
     function getAgencyId() {
-      return getUserData().agencyId;
+      return hasUserData() ? getUserData().agencyId : 'none';
     }
 
     function isSuperAdmin() {
       return isAuthenticated() && (
-        getUserData().role == 'super_admin' || 
-        (request.auth.token.email == "dbest4real2009@gmail.com" && request.auth.token.email_verified == true)
+        request.auth.token.email == "dbest4real2009@gmail.com" || 
+        (hasUserData() && getUserData().role == 'super_admin')
       );
     }
 
     function isAgencyAdmin() {
-      return isAuthenticated() && getUserData().role == 'admin';
+      return isAuthenticated() && hasUserData() && getUserData().role == 'admin';
     }
 
     function isStaff() {
-      return isAuthenticated() && getUserData().role in ['admin', 'agent', 'accountant', 'support'];
+      return isAuthenticated() && hasUserData() && getUserData().role in ['admin', 'agent', 'accountant', 'support'];
     }
 
     function belongsToAgency(agencyId) {
@@ -38,6 +42,16 @@ service cloud.firestore {
 
     function isDocOwner() {
       return isAuthenticated() && request.auth.uid == resource.data.clientId;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidRole(data) {
+      return hasOnlyAllowedFields(['id', 'agencyId', 'name', 'description', 'permissions', 'isSystem', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 50 &&
+             data.permissions is list && data.agencyId is string;
     }
 
     // ===============================================================
@@ -52,7 +66,14 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isAuthenticated() && (request.auth.uid == uid || (isStaff() && getAgencyId() == resource.data.agencyId) || isSuperAdmin());
       allow create: if isAuthenticated() && request.auth.uid == uid;
-      allow update: if isAuthenticated() && (request.auth.uid == uid || (isAgencyAdmin() && getAgencyId() == resource.data.agencyId) || isSuperAdmin());
+      allow update: if isAuthenticated() && (
+        request.auth.uid == uid || 
+        (isAgencyAdmin() && getAgencyId() == resource.data.agencyId && (
+          // Prevent non-super-admins from changing roles to super_admin
+          (!('role' in request.resource.data) || request.resource.data.role != 'super_admin')
+        )) || 
+        isSuperAdmin()
+      );
     }
 
     match /packages/{packageId} {
@@ -90,6 +111,98 @@ service cloud.firestore {
     match /messages/{id} {
       allow read: if isAuthenticated() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId || isSuperAdmin());
       allow create: if isAuthenticated() && getAgencyId() == request.resource.data.agencyId;
+    }
+
+    match /accommodations/{id} {
+      allow read: if isAuthenticated() && (belongsToAgency(resource.data.agencyId) || isSuperAdmin());
+      allow write: if isStaff() && belongsToAgency(request.resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /transport/{id} {
+      allow read: if isAuthenticated() && (belongsToAgency(resource.data.agencyId) || isSuperAdmin());
+      allow write: if isStaff() && belongsToAgency(request.resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /invoices/{id} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.clientId || isStaff() && belongsToAgency(resource.data.agencyId) || isSuperAdmin());
+      allow write: if (isStaff() && belongsToAgency(request.resource.data.agencyId)) || isSuperAdmin();
+    }
+
+    match /tasks/{id} {
+      allow read, write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /menus/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /pages/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /posts/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /services/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /subscribers/{id} {
+      allow read: if isStaff() && belongsToAgency(resource.data.agencyId) || isSuperAdmin();
+      allow create: if true; // Public can subscribe
+      allow update, delete: if isStaff() && belongsToAgency(resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /wp_posts/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /custom_forms/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /popup_campaigns/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /calendar_events/{id} {
+      allow read: if isAuthenticated() && (belongsToAgency(resource.data.agencyId) || isSuperAdmin());
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /vlogs/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /themes/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /destinations/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /site_settings/{id} {
+      allow read: if true;
+      allow write: if isAgencyAdmin() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /roles/{roleId} {
+      allow read: if isAuthenticated() && (belongsToAgency(resource.data.agencyId) || isSuperAdmin());
+      allow create: if isAgencyAdmin() && isValidRole(request.resource.data) || isSuperAdmin();
+      allow update: if (isAgencyAdmin() && belongsToAgency(resource.data.agencyId) && isValidRole(request.resource.data)) || isSuperAdmin();
+      allow delete: if (isAgencyAdmin() && belongsToAgency(resource.data.agencyId) && !resource.data.isSystem) || isSuperAdmin();
     }
   }
 }

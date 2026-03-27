@@ -125,6 +125,70 @@
         "isActive": { "type": "boolean" }
       },
       "required": ["agencyId", "code", "discountType", "discountValue"]
+    },
+    "Role": {
+      "title": "User Role",
+      "description": "Customizable user role with specific permissions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "isSystem": { "type": "boolean", "description": "If true, this role cannot be deleted" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "name", "permissions"]
+    },
+    "SiteSettings": {
+      "title": "Site Settings",
+      "description": "Global site configuration for an agency.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "siteName": { "type": "string" },
+        "siteDescription": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "faviconUrl": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" },
+        "contactPhone": { "type": "string" },
+        "address": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "siteName"]
+    },
+    "CustomForm": {
+      "title": "Custom Form",
+      "description": "A custom lead capture form.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "title": { "type": "string" },
+        "fields": { "type": "array", "items": { "type": "object" } },
+        "submitButtonText": { "type": "string" },
+        "successMessage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "title"]
+    },
+    "PopupCampaign": {
+      "title": "Popup Campaign",
+      "description": "A dynamic popup campaign for marketing.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["modal", "slide-in", "bar"] },
+        "trigger": { "type": "string", "enum": ["exit-intent", "scroll", "time-on-page"] },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "title", "type", "trigger"]
     }
   },
   "firestore": {
@@ -134,6 +198,10 @@
     "/bookings/{bookingId}": { "schema": "Booking", "description": "Bookings." },
     "/social_posts/{id}": { "schema": "SocialPost", "description": "Social media posts." },
     "/audit_logs/{id}": { "schema": "AuditLog", "description": "Audit logs." },
-    "/coupons/{id}": { "schema": "Coupon", "description": "Coupons." }
+    "/coupons/{id}": { "schema": "Coupon", "description": "Coupons." },
+    "/roles/{roleId}": { "schema": "Role", "description": "Custom user roles." },
+    "/site_settings/{id}": { "schema": "SiteSettings", "description": "Site-wide settings." },
+    "/custom_forms/{id}": { "schema": "CustomForm", "description": "Custom forms." },
+    "/popup_campaigns/{id}": { "schema": "PopupCampaign", "description": "Popup campaigns." }
   }
 }
