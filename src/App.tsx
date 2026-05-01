@@ -98,6 +98,7 @@ import {
   BarChart3,
   TrendingUp,
   Activity,
+  Music,
   Mail,
   Smartphone,
   MessageCircle,
@@ -127,8 +128,12 @@ import {
   Layers,
   Play,
   Database,
-  Palette
+  Palette,
+  Handshake,
+  Lightbulb,
+  Video
 } from 'lucide-react';
+import { BlockRenderer } from './components/BlockRenderer';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LineChart, 
@@ -145,6 +150,8 @@ import { generateItinerary, getTravelAdvice, generateText } from './services/gem
 import { BookingWizard } from './components/BookingWizard';
 import { VlogManagement } from './components/VlogManagement';
 import { ThemeManager } from './components/ThemeManager';
+import { AIItineraryBuilder } from './components/AIItineraryBuilder';
+import { InteractiveMap } from './components/InteractiveMap';
 
 // --- Components ---
 
@@ -170,6 +177,7 @@ const pageFields = [
   { name: 'slug', label: 'Slug', type: 'text', required: true },
   { name: 'content', label: 'Content (HTML)', type: 'html' },
   { name: 'status', label: 'Status', type: 'select', options: ['publish', 'draft'] },
+  { name: 'blocks', label: 'Blocks (Builder)', type: 'page-builder' },
 ];
 
 const menuFields = [
@@ -191,7 +199,32 @@ const serviceFields = [
   { name: 'name', label: 'Name', type: 'text', required: true },
   { name: 'description', label: 'Description (HTML)', type: 'html' },
   { name: 'price', label: 'Price', type: 'number', required: true },
-  { name: 'category', label: 'Category', type: 'select', options: ['visa', 'insurance', 'tour', 'other'] },
+  { name: 'category', label: 'Category', type: 'select', options: ['entertainment', 'travel', 'rental', 'tour', 'other'] },
+  { name: 'imageUrl', label: 'Image URL', type: 'text' },
+  { name: 'isActive', label: 'Is Active', type: 'boolean', defaultValue: true },
+];
+
+const inventionFields = [
+  { name: 'title', label: 'Title', type: 'text', required: true },
+  { name: 'description', label: 'Short Description', type: 'textarea' },
+  { name: 'content', label: 'Full Content (HTML)', type: 'html' },
+  { name: 'features', label: 'Features (JSON Array)', type: 'json' },
+  { name: 'imageUrl', label: 'Image URL', type: 'text' },
+  { name: 'status', label: 'Status', type: 'select', options: ['active', 'draft'] },
+];
+
+const reviewFields = [
+  { name: 'customerName', label: 'Customer Name', type: 'text', required: true },
+  { name: 'content', label: 'Content', type: 'textarea', required: true },
+  { name: 'rating', label: 'Rating (1-5)', type: 'number', required: true },
+  { name: 'photoUrl', label: 'Photo URL', type: 'text' },
+  { name: 'date', label: 'Date', type: 'date' },
+];
+
+const faqFields = [
+  { name: 'question', label: 'Question', type: 'text', required: true },
+  { name: 'answer', label: 'Answer', type: 'textarea', required: true },
+  { name: 'order', label: 'Order', type: 'number' },
 ];
 
 const invoiceFields = [
@@ -214,6 +247,13 @@ const staffFields = [
   { name: 'email', label: 'Email', type: 'text', required: true },
   { name: 'role', label: 'Role', type: 'select', options: ['agent', 'accountant', 'support', 'admin'] },
   { name: 'phoneNumber', label: 'Phone', type: 'text' },
+  { name: 'salary', label: 'Salary', type: 'number' },
+  { name: 'employmentDate', label: 'Employment Date', type: 'date' },
+  { name: 'employmentRecord', label: 'Employment Record (HTML)', type: 'html' },
+  { name: 'queries', label: 'Queries/Warnings (HTML)', type: 'html' },
+  { name: 'promotions', label: 'Promotions (HTML)', type: 'html' },
+  { name: 'status', label: 'Status', type: 'select', options: ['active', 'dismissed', 'on_leave'] },
+  { name: 'dismissalReason', label: 'Dismissal Reason', type: 'textarea' },
 ];
 
 const siteSettingsFields = [
@@ -224,6 +264,11 @@ const siteSettingsFields = [
   { name: 'contactEmail', label: 'Contact Email', type: 'text' },
   { name: 'contactPhone', label: 'Contact Phone', type: 'text' },
   { name: 'address', label: 'Address (HTML)', type: 'html' },
+  { name: 'facebook', label: 'Facebook URL', type: 'text' },
+  { name: 'instagram', label: 'Instagram URL', type: 'text' },
+  { name: 'twitter', label: 'Twitter URL', type: 'text' },
+  { name: 'linkedin', label: 'LinkedIn URL', type: 'text' },
+  { name: 'youtube', label: 'YouTube URL', type: 'text' },
 ];
 
 const customFormFields = [
@@ -239,6 +284,40 @@ const popupCampaignFields = [
   { name: 'trigger', label: 'Trigger', type: 'select', options: ['exit_intent', 'time_delay', 'scroll_depth'] },
   { name: 'isActive', label: 'Is Active', type: 'boolean', defaultValue: true },
 ];
+
+const FieztaLogo = ({ className }: { className?: string }) => (
+  <div className={cn("relative flex items-center justify-center rounded-full overflow-hidden", className)}>
+    <svg viewBox="0 0 100 100" className="w-full h-full">
+      {/* Outer black ring */}
+      <circle cx="50" cy="50" r="48" fill="black" />
+      
+      {/* Inner orange circle */}
+      <circle cx="50" cy="50" r="38" fill="#FF9900" />
+      
+      {/* Saxophone Player Silhouette (Approximate) */}
+      <path 
+        d="M50 25 c-5 0 -8 5 -8 10 s3 15 5 20 l-5 15 c0 2 2 4 4 4 s4 -2 4 -4 l3 -10 l5 10 c0 2 2 4 4 4 s4 -2 4 -4 l-5 -15 c2 -5 5 -15 5 -20 s-3 -10 -8 -10 Z" 
+        fill="black" 
+      />
+      
+      {/* Wheels */}
+      <circle cx="40" cy="80" r="6" fill="black" />
+      <circle cx="40" cy="80" r="3" fill="#333" />
+      <circle cx="60" cy="80" r="6" fill="black" />
+      <circle cx="60" cy="80" r="3" fill="#333" />
+      
+      {/* Text Path for "FIEZTA INTERNATIONAL" */}
+      <defs>
+        <path id="circlePath" d="M 50, 50 m -45, 0 a 45,45 0 1,1 90,0 a 45,45 0 1,1 -90,0" />
+      </defs>
+      <text fill="white" fontSize="4.5" fontWeight="black" letterSpacing="1">
+        <textPath xlinkHref="#circlePath" startOffset="50%" textAnchor="middle">
+          FIEZTA INTERNATIONAL
+        </textPath>
+      </text>
+    </svg>
+  </div>
+);
 
 const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
   <button
@@ -277,6 +356,52 @@ const StatusBadge = ({ status, type = 'booking' }: { status: string, type?: 'boo
   );
 };
 
+const ReviewCard = ({ review }: { review: any }) => (
+  <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all">
+    <div className="flex gap-1 mb-4">
+      {[...Array(5)].map((_, i) => (
+        <Sparkles key={i} size={16} className={cn(i < review.rating ? "text-[#D4AF37] fill-[#D4AF37]" : "text-slate-200")} />
+      ))}
+    </div>
+    <p className="text-slate-600 italic mb-6 leading-relaxed">"{review.content}"</p>
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
+        {review.photoUrl ? <img src={review.photoUrl} alt={review.customerName} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <UserIcon size={20} className="text-slate-400" />}
+      </div>
+      <div>
+        <h5 className="font-bold text-slate-900 text-sm">{review.customerName}</h5>
+        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{review.date ? new Date(review.date).toLocaleDateString() : 'Verified Customer'}</p>
+      </div>
+    </div>
+  </div>
+);
+
+const FaqItem = ({ faq, isOpen, onToggle }: { faq: any, isOpen: boolean, onToggle: () => void }) => (
+  <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden mb-4 transition-all">
+    <button 
+      onClick={onToggle}
+      className="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50 transition-colors"
+    >
+      <span className="font-bold text-slate-900">{faq.question}</span>
+      <ChevronRight size={20} className={cn("text-slate-400 transition-transform", isOpen && "rotate-90 text-[#D4AF37]")} />
+    </button>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          className="border-t border-slate-50"
+        >
+          <div className="p-6 text-slate-600 leading-relaxed">
+            {faq.answer}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+);
+
 // --- Main App ---
 
 export default function App() {
@@ -286,6 +411,40 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [agencyId, setAgencyId] = useState<string | null>(null);
   const [activeTheme, setActiveTheme] = useState<Theme | null>(null);
+  const [siteSettings, setSiteSettings] = useState<any>(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [activeFaq, setActiveFaq] = useState<string | null>(null);
+  const [currentPublicPage, setCurrentPublicPage] = useState<string>('home');
+  const [activePageBlocks, setActivePageBlocks] = useState<any[]>([]);
+
+  // Fetch Site Settings
+  useEffect(() => {
+    if (!agencyId) return;
+    const q = query(collection(db, 'site_settings'), where('agencyId', '==', agencyId), limit(1));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const settings = snapshot.docs[0].data();
+        setSiteSettings(settings);
+        
+        // Update favicon dynamically
+        if (settings.faviconUrl) {
+          let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+          if (!link) {
+            link = document.createElement('link');
+            link.rel = 'icon';
+            document.head.appendChild(link);
+          }
+          link.href = settings.faviconUrl;
+        }
+        
+        // Update Title
+        if (settings.siteName) {
+          document.title = settings.siteName;
+        }
+      }
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'site_settings'));
+    return () => unsubscribe();
+  }, [agencyId]);
 
   // Fetch Active Theme
   useEffect(() => {
@@ -324,6 +483,23 @@ export default function App() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [documents, setDocuments] = useState<TravelDocument[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [faqs, setFaqs] = useState<any[]>([]);
+  const [pages, setPages] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (currentPublicPage === 'home' || currentPublicPage === 'inventions') {
+      setActivePageBlocks([]);
+      return;
+    }
+    const page = pages.find(p => p.slug === currentPublicPage);
+    if (page) {
+      setActivePageBlocks(page.blocks || []);
+    }
+  }, [currentPublicPage, pages]);
+
+  const [inventions, setInventions] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [clients, setClients] = useState<UserProfile[]>([]);
   const [staff, setStaff] = useState<UserProfile[]>([]);
@@ -332,6 +508,8 @@ export default function App() {
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isItineraryBuilderOpen, setIsItineraryBuilderOpen] = useState(false);
+  const [isWorldMapOpen, setIsWorldMapOpen] = useState(false);
   
   // WordPress & Marketing State
   const [wpPosts, setWpPosts] = useState<WPPost[]>([]);
@@ -381,24 +559,6 @@ export default function App() {
     };
     fetchItinerary();
   }, [selectedBookingDetail, invoices, documents]);
-
-  useEffect(() => {
-    if (!agencyId) return;
-    const q = query(collection(db, 'menus'), where('agencyId', '==', agencyId), where('isActive', '==', true));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setMenus(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Menu[]);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'menus'));
-    return () => unsubscribe();
-  }, [agencyId]);
-
-  useEffect(() => {
-    if (!agencyId) return;
-    const q = query(collection(db, 'roles'), where('agencyId', '==', agencyId));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setAvailableRoles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Role[]);
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'roles'));
-    return () => unsubscribe();
-  }, [agencyId]);
 
   const handleUpdateBookingStatus = async (bookingId: string, newStatus: BookingStatus) => {
     try {
@@ -643,6 +803,7 @@ export default function App() {
       } else {
         setUser(null);
         setProfile(null);
+        setAgencyId(null);
       }
       setLoading(false);
     });
@@ -732,7 +893,7 @@ export default function App() {
     let subUnsub = () => {};
     if (profile.role === 'super_admin' || profile.role === 'admin') {
       subUnsub = onSnapshot(query(collection(db, 'subscribers'), where('agencyId', '==', agencyId)), (snapshot) => {
-        setSubscribers(snapshot.docs.map(doc => ({ email: doc.id, ...doc.data() } as NewsletterSubscriber)));
+        setSubscribers(snapshot.docs.map(doc => ({ id: doc.id, email: doc.id, ...doc.data() } as NewsletterSubscriber)));
       }, (error) => handleFirestoreError(error, OperationType.GET, 'subscribers'));
     }
 
@@ -748,6 +909,41 @@ export default function App() {
     const wpPostsUnsub = onSnapshot(query(collection(db, 'wp_posts'), where('agencyId', '==', agencyId)), (snapshot) => {
       setWpPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'wp_posts'));
+
+    // Fetch Menus
+    const menusUnsub = onSnapshot(query(collection(db, 'menus'), where('agencyId', '==', agencyId), where('isActive', '==', true)), (snapshot) => {
+      setMenus(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Menu[]);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'menus'));
+
+    // Fetch Roles
+    const rolesUnsub = onSnapshot(query(collection(db, 'roles'), where('agencyId', '==', agencyId)), (snapshot) => {
+      setAvailableRoles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Role[]);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'roles'));
+
+    // Fetch Services
+    const servicesUnsub = onSnapshot(query(collection(db, 'services'), where('agencyId', '==', agencyId)), (snapshot) => {
+      setServices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'services'));
+
+    // Fetch Reviews
+    const reviewsUnsub = onSnapshot(query(collection(db, 'reviews'), where('agencyId', '==', agencyId)), (snapshot) => {
+      setReviews(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'reviews'));
+
+    // Fetch FAQs
+    const faqsUnsub = onSnapshot(query(collection(db, 'faqs'), where('agencyId', '==', agencyId), orderBy('order', 'asc')), (snapshot) => {
+      setFaqs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'faqs'));
+
+    // Fetch Pages
+    const pagesUnsub = onSnapshot(query(collection(db, 'pages'), where('agencyId', '==', agencyId)), (snapshot) => {
+      setPages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'pages'));
+
+    // Fetch Inventions
+    const inventionsUnsub = onSnapshot(query(collection(db, 'inventions'), where('agencyId', '==', agencyId)), (snapshot) => {
+      setInventions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'inventions'));
 
     // Fetch Custom Forms
     const formsUnsub = onSnapshot(query(collection(db, 'custom_forms'), where('agencyId', '==', agencyId)), (snapshot) => {
@@ -788,6 +984,13 @@ export default function App() {
       subUnsub();
       clientsUnsub();
       wpPostsUnsub();
+      menusUnsub();
+      rolesUnsub();
+      servicesUnsub();
+      reviewsUnsub();
+      faqsUnsub();
+      pagesUnsub();
+      inventionsUnsub();
       formsUnsub();
       popupsUnsub();
       calendarUnsub();
@@ -878,9 +1081,12 @@ export default function App() {
               isActive: true,
               items: [
                 { label: 'Destinations', url: '#destinations', order: 1 },
-                { label: 'Vlogs', url: '#vlogs', order: 2 },
-                { label: 'Services', url: '#services', order: 3 },
-                { label: 'About', url: '#about', order: 4 }
+                { label: 'Travel', url: '/travel', order: 2 },
+                { label: 'Entertainment', url: '/entertainment', order: 3 },
+                { label: 'Rentals', url: '/rentals', order: 4 },
+                { label: 'Vlog', url: '/vlog', order: 5 },
+                { label: 'Inventions', url: '/inventions', order: 6 },
+                { label: 'Contact', url: '#contact', order: 7 }
               ],
               createdAt: new Date().toISOString()
             },
@@ -962,10 +1168,115 @@ export default function App() {
             await addDoc(collection(db, 'calendar_events'), event);
           }
         }
+        // Seed Services
+        if (services.length === 0) {
+          const initialServices = [
+            { agencyId: profile.agencyId, name: 'Live Entertainment Bands', description: 'World-class musical entertainment for your luxury events and parties.', category: 'entertainment', price: 1500, isActive: true },
+            { agencyId: profile.agencyId, name: 'Musical Instruments Rental', description: 'High-quality saxophones, pianos, and sound equipment for rent.', category: 'rental', price: 200, isActive: true },
+            { agencyId: profile.agencyId, name: 'DMV Area Concierge', description: 'Elite accommodation research and arrangement within DC, Maryland, and Virginia.', category: 'tour', price: 500, isActive: true },
+            { agencyId: profile.agencyId, name: 'Seamless Travel Services', description: 'Airport pick-ups, visa processing, and sightseeing tour planning.', category: 'travel', price: 300, isActive: true }
+          ];
+          for (const service of initialServices) {
+            await addDoc(collection(db, 'services'), service);
+          }
+        }
+
+        // Seed Reviews
+        if (reviews.length === 0) {
+          const initialReviews = [
+            { agencyId: profile.agencyId, customerName: 'Adebola S.', content: 'The concierge services provided by this company are top-notch! From visa processing to airport pickups, everything was seamless and well-coordinated.', rating: 5, date: new Date().toISOString() },
+            { agencyId: profile.agencyId, customerName: 'Elena V.', content: 'Amazing tourist guide services! They made my trip unforgettable by showing me the best spots and hidden gems in the city.', rating: 5, date: new Date().toISOString() },
+            { agencyId: profile.agencyId, customerName: 'Marcus J.', content: 'I rented sound equipment for a corporate event, and it was a great decision. Pristine condition and outstanding support.', rating: 5, date: new Date().toISOString() }
+          ];
+          for (const review of initialReviews) {
+            await addDoc(collection(db, 'reviews'), review);
+          }
+        }
+
+        // Seed FAQs
+        if (faqs.length === 0) {
+          const initialFaqs = [
+            { agencyId: profile.agencyId, question: 'What areas do you cover?', answer: 'We primarily cover the DMV area (Washington DC, Maryland, Virginia) for lifestyle concierge but offer global travel support.', order: 1 },
+            { agencyId: profile.agencyId, question: 'How do I book a band?', answer: 'You can book through our services portal or contact our concierge directly for a bespoke quote.', order: 2 },
+            { agencyId: profile.agencyId, question: 'Do you offer airport pickups?', answer: 'Yes, we offer seamless airport pickups on the day of arrival as part of our travel services.', order: 3 }
+          ];
+          for (const faq of initialFaqs) {
+            await addDoc(collection(db, 'faqs'), faq);
+          }
+        }
+
+        // Seed Pages
+        if (pages.length === 0) {
+          const initialPages = [
+            {
+              agencyId: profile.agencyId,
+              title: 'Exclusive Travel',
+              slug: 'travel',
+              status: 'publish',
+              blocks: [
+                { id: '1', type: 'hero', data: { title: 'Seamless Travel', description: 'Elite accommodation research and arrangement within DC, Maryland, and Virginia.', tagline: 'LUXURY CONCIERGE', buttonLabel: 'Explore Packages' } },
+                { id: '2', type: 'grid', data: { title: 'Travel Services', subtitle: 'Global support for discerning travelers.', columns: 3, items: [
+                  { title: 'Airport Pick-ups', description: 'Seamless transitions from the moment you land.' },
+                  { title: 'Visa Processing', description: 'Handling the paperwork while you plan the fun.' },
+                  { title: 'Sightseeing', description: 'Curated tours of the DMV area and beyond.' }
+                ] } },
+                { id: '3', type: 'cta', data: { title: 'Ready to Fly?', description: 'Contact our travel concierge today.', buttonLabel: 'Contact Us', buttonAction: '#contact' } }
+              ]
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Elite Entertainment',
+              slug: 'entertainment',
+              status: 'publish',
+              blocks: [
+                { id: '1', type: 'hero', data: { title: 'Elite Entertainment', description: 'World-class musical entertainment for your luxury events and parties.', tagline: 'LIVE MUSIC', buttonLabel: 'Book a Band' } },
+                { id: '2', type: 'video', data: { title: 'Performance Highlights', duration: '3:45', thumbnail: 'https://images.unsplash.com/photo-1514525253361-bee047320bca?auto=format&fit=crop&q=80' } },
+                { id: '3', type: 'grid', data: { title: 'Our Talent', subtitle: 'A roster of world-class performers.', columns: 3, items: [
+                  { title: 'Jazz Bands', description: 'Sophisticated sounds for your corporate mixer.' },
+                  { title: 'DJs & Producers', description: 'High-energy beats for exclusive celebrations.' },
+                  { title: 'Soloists', description: 'Elegant string or piano accompaniment.' }
+                ] } }
+              ]
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Luxury Rentals',
+              slug: 'rentals',
+              status: 'publish',
+              blocks: [
+                { id: '1', type: 'hero', data: { title: 'Pristine Rentals', description: 'High-quality saxophones, pianos, and sound equipment for rent.', tagline: 'EQUIPMENT & MORE', buttonLabel: 'View Catalog' } },
+                { id: '2', type: 'grid', data: { title: 'Rental Category', subtitle: 'Everything you need for the perfect sound.', columns: 4, items: [
+                  { title: 'Saxophones', description: 'Professional grade instruments.' },
+                  { title: 'Grand Pianos', description: 'Stunning centerpieces for any room.' },
+                  { title: 'Sound Systems', description: 'Crystal clear audio for ceremonies.' },
+                  { title: 'Luxury Transport', description: 'Travel in style across the DMV.' }
+                ] } }
+              ]
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Fiezta Vlog',
+              slug: 'vlog',
+              status: 'publish',
+              blocks: [
+                { id: '1', type: 'hero', data: { title: 'Lifestyle Vlog', description: 'Behind the scenes of our most exclusive DMV events.', tagline: 'FIEZTA LIFE', buttonLabel: 'Watch Now' } },
+                { id: '2', type: 'video', data: { title: 'The Great Escape 2026', duration: '12:00' } },
+                { id: '3', type: 'grid', data: { title: 'Recent Stories', columns: 3, items: [
+                  { title: 'DC Jazz Night', description: 'A night to remember at the Mayflower.' },
+                  { title: 'Maryland Wedding', description: 'Waterfront elegance and soul.' },
+                  { title: 'Virginia Vineyard', description: 'A musical tour of VA wine country.' }
+                ] } }
+              ]
+            }
+          ];
+          for (const page of initialPages) {
+            await addDoc(collection(db, 'pages'), page);
+          }
+        }
       };
       seedData();
     }
-  }, [profile, wpPosts.length, customForms.length, popupCampaigns.length, calendarEvents.length, menus.length]);
+  }, [profile, wpPosts.length, customForms.length, popupCampaigns.length, calendarEvents.length, menus.length, services.length, reviews.length, faqs.length, pages.length]);
 
   const onBookingSuccess = () => {
     setIsBookingModalOpen(false);
@@ -1060,21 +1371,274 @@ export default function App() {
   }
 
   if (!user) {
+    if (currentPublicPage === 'inventions') {
+      return (
+        <div className="min-h-screen bg-white font-sans">
+          {/* Header */}
+          <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-xl border-b border-slate-100">
+             <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+               <button onClick={() => setCurrentPublicPage('home')} className="flex items-center gap-3 group">
+                 <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
+                   <FieztaLogo className="w-full h-full" />
+                 </div>
+                 <div className="flex flex-col text-left">
+                   <span className="font-black text-xl tracking-tighter uppercase group-hover:text-[#D4AF37] transition-colors leading-none">Fiezta</span>
+                   <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">International</span>
+                 </div>
+               </button>
+               <div className="flex items-center gap-4">
+                 <button onClick={() => setCurrentPublicPage('home')} className="hidden sm:block text-sm font-bold text-slate-600 hover:text-[#D4AF37] transition-colors">
+                   Back to Home
+                 </button>
+                 <button onClick={handleLogin} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-[#D4AF37] transition-all">
+                   Sign In
+                 </button>
+               </div>
+             </div>
+          </nav>
+
+          <div className="pt-32 pb-20 max-w-7xl mx-auto px-6">
+            <div className="max-w-4xl mx-auto">
+             <div className="mb-16">
+               <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-[0.4em] mb-4 block animate-pulse">Patented Project Seeking Licensing Agreement</span>
+               <h1 className="text-5xl lg:text-8xl font-black tracking-tighter text-slate-900 mb-8 leading-[0.95]">
+                 Wireless Portable <span className="text-[#D4AF37]">Electronic</span> Charger
+               </h1>
+               <div className="flex flex-wrap gap-4 mb-8">
+                 <button className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#D4AF37] transition-all flex items-center gap-2">
+                   <Mail size={18} /> Email Us
+                 </button>
+                 <button className="px-8 py-4 bg-white border-2 border-slate-100 text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2">
+                   <Smartphone size={18} /> Call Us
+                 </button>
+               </div>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center mb-32">
+               <div className="space-y-8">
+                  <div>
+                    <h3 className="text-3xl font-black text-slate-900 mb-6">What is Wireless Energy?</h3>
+                    <p className="text-xl text-slate-600 leading-relaxed">
+                      Wireless Energy is a multipurpose charging device that can supply battery power to phones, tablets, and other electronics without the need for an electrical outlet. Users can connect their devices to the Wireless Energy Unit and have access to charging and Wi-Fi at any desired location.
+                    </p>
+                  </div>
+                  <div className="p-8 bg-amber-50 rounded-[32px] border border-amber-100">
+                    <p className="text-slate-700 leading-relaxed font-medium">
+                      The wireless Portable Electronic Charger, which is a patent-based project would be an excellent extension to your existing product line. We believe your organization would benefit from this innovative device.
+                    </p>
+                  </div>
+               </div>
+               <div className="relative group">
+                  <div className="absolute inset-0 bg-[#D4AF37]/20 rounded-[40px] blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+                  <div className="relative bg-slate-900 p-12 rounded-[40px] border border-white/10 shadow-2xl overflow-hidden">
+                    <Zap size={120} className="text-[#D4AF37] mb-8 opacity-20 absolute -top-4 -right-4 rotate-12" />
+                    <h4 className="text-2xl font-black text-white mb-4">Unique Market Benefits</h4>
+                    <p className="text-slate-400 leading-relaxed mb-8">
+                      This Project contains proprietary intellectual property rights established through the patent allowance. We are confident this Wireless Portable Electronic Charger would offer your company the benefits of having this unique product in the marketplace in addition to substantial profitability.
+                    </p>
+                    <div className="flex gap-2">
+                      {[1,2,3].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]"></div>)}
+                    </div>
+                  </div>
+               </div>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-32">
+                <div className="p-10 bg-slate-50 rounded-[40px] border border-slate-100">
+                  <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
+                    <Layout size={24} className="text-[#D4AF37]" />
+                    Project Overview
+                  </h3>
+                  <ul className="space-y-4">
+                    <li className="flex items-start gap-4">
+                      <div className="w-6 h-6 bg-[#D4AF37] text-white rounded-lg flex items-center justify-center shrink-0 mt-1"><CheckCircle2 size={14} /></div>
+                      <p className="text-slate-600 font-medium">Patent-based product: Wireless Portable Electronic Charger.</p>
+                    </li>
+                    <li className="flex items-start gap-4">
+                      <div className="w-6 h-6 bg-[#D4AF37] text-white rounded-lg flex items-center justify-center shrink-0 mt-1"><CheckCircle2 size={14} /></div>
+                      <p className="text-slate-600 font-medium">Proprietary intellectual property rights secured through patent allowance.</p>
+                    </li>
+                    <li className="flex items-start gap-4">
+                      <div className="w-6 h-6 bg-[#D4AF37] text-white rounded-lg flex items-center justify-center shrink-0 mt-1"><CheckCircle2 size={14} /></div>
+                      <p className="text-slate-600 font-medium">Designed to complement and extend your current product line.</p>
+                    </li>
+                  </ul>
+                </div>
+                <div className="grid grid-cols-1 gap-8">
+                  <div className="p-10 bg-white border border-slate-100 rounded-[40px] flex items-center gap-6 shadow-sm hover:shadow-md transition-all">
+                    <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0"><Target className="text-[#D4AF37]" size={32} /></div>
+                    <div>
+                      <h4 className="text-xl font-bold text-slate-900">Key Benefits</h4>
+                      <p className="text-sm text-slate-500">Unique product offering with significant market potential and substantial profitability.</p>
+                    </div>
+                  </div>
+                  <div className="p-10 bg-white border border-slate-100 rounded-[40px] flex items-center gap-6 shadow-sm hover:shadow-md transition-all">
+                    <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0"><TrendingUp className="text-indigo-600" size={32} /></div>
+                    <div>
+                      <h4 className="text-xl font-bold text-slate-900">Prospectus Overview</h4>
+                      <p className="text-sm text-slate-500">Detailed product overview, market analysis, and financial forecasts available.</p>
+                    </div>
+                  </div>
+                </div>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-32">
+                {[
+                  { icon: Zap, title: 'Wireless Charging', desc: 'Wireless charging and Wi-Fi system designed to offer power and internet at home or traveling.' },
+                  { icon: Layout, title: 'Software Management', desc: 'App that connects wirelessly with several devices to utilize charging or WiFi.' },
+                  { icon: Shield, title: 'Battery Safety', desc: 'Prevents running out of battery or access to WiFi at important social events.' },
+                  { icon: Globe, title: 'Portable', desc: 'Portable charger capable of supplying battery power and Wi-Fi to smartphones, tablets, etc.' }
+                ].map((feature, i) => (
+                  <div key={i} className="p-8 bg-white border border-slate-100 rounded-[32px] hover:border-[#D4AF37] transition-all">
+                    <feature.icon className="text-[#D4AF37] mb-4" size={32} />
+                    <h4 className="font-bold text-slate-900 mb-2">{feature.title}</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">{feature.desc}</p>
+                  </div>
+                ))}
+             </div>
+
+             <div className="bg-slate-900 rounded-[48px] p-12 lg:p-20 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-20 opacity-10">
+                  <Handshake size={300} className="rotate-12" />
+                </div>
+                <div className="relative z-10 max-w-2xl text-center mx-auto">
+                  <h2 className="text-4xl lg:text-6xl font-black mb-8">Partnership Opportunity</h2>
+                  <p className="text-xl text-slate-400 mb-12 leading-relaxed">
+                    Seeking a long-term arrangement, potentially including exclusivity. Looking for a company to manufacture, distribute, and sell Wireless Portable Electronics Chargers.
+                  </p>
+                  <div className="flex flex-col sm:flex-row justify-center gap-6">
+                    <button className="px-10 py-5 bg-[#D4AF37] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center justify-center gap-2">
+                       Get Started Today <ChevronRight size={20} />
+                    </button>
+                    <button className="px-10 py-5 bg-white/10 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-white/20 transition-all border border-white/10">
+                       Contact Me
+                    </button>
+                  </div>
+                </div>
+             </div>
+            </div>
+          </div>
+          <footer className="py-20 border-t border-slate-50 bg-slate-50/30">
+            <div className="max-w-7xl mx-auto px-6 text-center">
+              <FieztaLogo className="w-12 h-12 mx-auto mb-6" />
+              <p className="text-slate-400 text-sm">© 2026 Fiezta Inventions. All intellectual property rights reserved.</p>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    if (activePageBlocks.length > 0) {
+      return (
+        <div className="min-h-screen bg-white font-sans selection:bg-amber-100">
+          <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-xl border-b border-slate-100">
+             <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+               <button onClick={() => setCurrentPublicPage('home')} className="flex items-center gap-3 group">
+                 <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
+                   <FieztaLogo className="w-full h-full" />
+                 </div>
+                 <div className="flex flex-col text-left">
+                   <span className="font-black text-xl tracking-tighter uppercase group-hover:text-[#D4AF37] transition-colors leading-none">Fiezta</span>
+                   <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">International</span>
+                 </div>
+               </button>
+               
+               <div className="hidden md:flex items-center gap-8">
+                 {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map(item => (
+                   <button 
+                     key={item.label} 
+                     onClick={() => {
+                        if (item.url === 'home' || item.url === '/') {
+                          setCurrentPublicPage('home');
+                        } else if (item.url.startsWith('/')) {
+                          setCurrentPublicPage(item.url.substring(1));
+                        } else if (item.url.startsWith('#')) {
+                          setCurrentPublicPage('home');
+                          setTimeout(() => {
+                            const el = document.querySelector(item.url);
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          }, 300);
+                        }
+                     }}
+                     className={cn(
+                       "text-sm font-semibold transition-colors",
+                       currentPublicPage === item.url.replace('/', '') ? "text-[#D4AF37]" : "text-slate-600 hover:text-[#D4AF37]"
+                     )}
+                   >
+                     {item.label}
+                   </button>
+                 ))}
+               </div>
+
+               <div className="flex items-center gap-4">
+                 <button onClick={handleLogin} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-[#D4AF37] transition-all">
+                   Sign In
+                 </button>
+               </div>
+             </div>
+          </nav>
+
+          <div className="pt-20">
+            {activePageBlocks.map((block: any) => (
+              <BlockRenderer 
+                key={block.id} 
+                block={block} 
+                faqs={faqs} 
+                reviews={reviews} 
+                onAction={(action) => {
+                  if (action === '#contact') {
+                    setCurrentPublicPage('home');
+                    setTimeout(() => {
+                      const el = document.getElementById('contact');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }, 300);
+                  }
+                }}
+              />
+            ))}
+          </div>
+
+          <footer className="py-20 border-t border-slate-50 bg-slate-50/30">
+            <div className="max-w-7xl mx-auto px-6 text-center">
+              <FieztaLogo className="w-12 h-12 mx-auto mb-6" />
+              <p className="text-slate-400 text-sm">© 2026 Fiezta International. All rights reserved.</p>
+            </div>
+          </footer>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-white font-sans selection:bg-amber-100 selection:text-amber-900">
         {/* Navigation */}
         <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#D4AF37] rounded-xl flex items-center justify-center shadow-lg shadow-amber-200">
-                <Globe className="text-white" size={20} />
+              <FieztaLogo className="w-10 h-10" />
+              <div className="flex flex-col">
+                <span className="text-2xl font-black tracking-tighter text-slate-900 leading-none">FIEZTA</span>
+                <span className="text-[10px] font-bold text-[#FF9900] uppercase tracking-widest mt-1">International</span>
               </div>
-              <span className="text-2xl font-black tracking-tighter text-slate-900">FIEZTA</span>
             </div>
             
             <div className="hidden md:flex items-center gap-8">
               {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map(item => (
-                <a key={item.label} href={item.url} className="text-sm font-semibold text-slate-600 hover:text-[#D4AF37] transition-colors">{item.label}</a>
+                <button 
+                  key={item.label} 
+                  onClick={() => {
+                    if (item.url.startsWith('/')) {
+                      setCurrentPublicPage(item.url.substring(1));
+                    } else if (item.url.startsWith('#')) {
+                      setCurrentPublicPage('home');
+                      setTimeout(() => {
+                        const el = document.querySelector(item.url);
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }, 300);
+                    }
+                  }}
+                  className="text-sm font-semibold text-slate-600 hover:text-[#D4AF37] transition-colors"
+                >
+                  {item.label}
+                </button>
               ))}
               <button 
                 onClick={handleLogin}
@@ -1084,10 +1648,55 @@ export default function App() {
               </button>
             </div>
             
-            <button className="md:hidden p-2 text-slate-600">
-              <MenuIcon size={24} />
+            <button 
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="md:hidden p-2 text-slate-600 focus:outline-none"
+            >
+              {showMobileMenu ? <X size={24} /> : <MenuIcon size={24} />}
             </button>
           </div>
+
+          {/* Mobile Menu Panel */}
+          {showMobileMenu && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-white border-b border-slate-100 overflow-hidden"
+            >
+              <div className="flex flex-col p-6 gap-4">
+                {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map(item => (
+                  <button 
+                    key={item.label} 
+                    onClick={() => {
+                      if (item.url.startsWith('/')) {
+                        setCurrentPublicPage(item.url.substring(1));
+                      } else if (item.url.startsWith('#')) {
+                        setCurrentPublicPage('home');
+                        setTimeout(() => {
+                          const el = document.querySelector(item.url);
+                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        }, 300);
+                      }
+                      setShowMobileMenu(false);
+                    }}
+                    className="text-left text-lg font-semibold text-slate-600 hover:text-[#D4AF37] transition-colors"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+                <button 
+                  onClick={() => {
+                    handleLogin();
+                    setShowMobileMenu(false);
+                  }}
+                  className="w-full px-6 py-3 bg-slate-900 text-white rounded-xl text-md font-bold hover:bg-[#D4AF37] transition-all shadow-lg"
+                >
+                  Sign In
+                </button>
+              </div>
+            </motion.div>
+          )}
         </nav>
 
         {/* Hero Section */}
@@ -1286,68 +1895,186 @@ export default function App() {
           </div>
         </section>
 
-        {/* Features Section */}
+        {/* Services Section */}
         <section id="services" className="py-32 bg-white overflow-hidden">
           <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center mb-20">
+              <h2 className="text-4xl lg:text-6xl font-black tracking-tighter text-slate-900 mb-6 uppercase">Our <span className="text-[#D4AF37]">Services</span></h2>
+              <p className="text-xl text-slate-500 max-w-2xl mx-auto">Beyond convention, Fiezta is open. Elite concierge solutions for busy people and tourists.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {[
+                { 
+                  name: "Live Entertainment", 
+                  desc: "World-class bands and soloists for your events.", 
+                  icon: Music,
+                  color: "bg-blue-50 text-blue-600 border-blue-100"
+                },
+                { 
+                  name: "Seamless Travel", 
+                  desc: "Visa processing, airport pickups, and local guides.", 
+                  icon: Plane,
+                  color: "bg-emerald-50 text-emerald-600 border-emerald-100"
+                },
+                { 
+                  name: "Elite Rentals", 
+                  desc: "Musical instruments, sound equipment, and luxury vehicles.", 
+                  icon: Car,
+                  color: "bg-amber-50 text-amber-600 border-amber-100"
+                },
+                { 
+                  name: "DMV Concierge", 
+                  desc: "Accommodation search and lifestyle management in the DMV area.", 
+                  icon: Home,
+                  color: "bg-rose-50 text-rose-600 border-rose-100"
+                }
+              ].map((service, idx) => (
+                <motion.div 
+                  key={idx}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="p-8 bg-white border border-slate-100 rounded-[40px] hover:shadow-xl transition-all group"
+                >
+                  <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center mb-8 border transition-transform group-hover:scale-110", service.color)}>
+                    <service.icon size={32} />
+                  </div>
+                  <h4 className="text-2xl font-black text-slate-900 mb-4">{service.name}</h4>
+                  <p className="text-slate-500 leading-relaxed mb-6">{service.desc}</p>
+                  <button onClick={handleLogin} className="text-[#D4AF37] font-bold flex items-center gap-2 group/btn">
+                    Learn More <ChevronRight size={16} className="transition-transform group-hover/btn:translate-x-1" />
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Testimonials Section */}
+        <section className="py-32 bg-slate-50 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex flex-col md:flex-row items-end justify-between mb-16 gap-6">
+              <div className="max-w-2xl">
+                <h2 className="text-4xl lg:text-6xl font-black tracking-tighter text-slate-900 mb-6 uppercase">Voices of <span className="text-[#D4AF37]">Trust</span></h2>
+                <p className="text-xl text-slate-500">What our royal customers say about the Fiezta experience.</p>
+              </div>
+              <div className="flex gap-4">
+                <div className="h-12 w-12 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-900 cursor-pointer transition-colors">
+                  <X size={20} className="rotate-180" />
+                </div>
+                <div className="h-12 w-12 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-900 cursor-pointer transition-colors">
+                  <ChevronRight size={20} />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {reviews.length > 0 ? reviews.map((review, idx) => (
+                <ReviewCard key={review.id} review={review} />
+              )) : (
+                [
+                  { customerName: "Adebola S.", content: "The concierge services provided are top-notch! Everything was seamless.", rating: 5 },
+                  { customerName: "Marcus J.", content: "Perfect luxury vehicle rental for our executive team. Professional and timely.", rating: 5 },
+                  { customerName: "Elena V.", content: "Their sightseeing tour planning made our DC trip unforgettable.", rating: 5 }
+                ].map((r, i) => <ReviewCard key={i} review={r} />)
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="py-32 bg-white">
+          <div className="max-w-3xl mx-auto px-6">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl lg:text-6xl font-black tracking-tighter text-slate-900 mb-6 uppercase">FAQ</h2>
+              <p className="text-xl text-slate-500">Everything you need to know about Fiezta concierge services.</p>
+            </div>
+            
+            <div className="space-y-4">
+              {faqs.length > 0 ? faqs.map((faq, idx) => (
+                <FaqItem 
+                  key={faq.id} 
+                  faq={faq} 
+                  isOpen={activeFaq === faq.id} 
+                  onToggle={() => setActiveFaq(activeFaq === faq.id ? null : faq.id)} 
+                />
+              )) : (
+                [
+                  { question: "What areas do you cover?", answer: "We primarily cover the DMV area (Washington DC, Maryland, Virginia) for accommodation and concierge, but our travel services are global." },
+                  { question: "Can I book entertainment and travel together?", answer: "Yes! Fiezta is an all-in-one concierge. You can bundle entertainment, rentals, and travel services." },
+                  { question: "How does the AI Itinerary work?", answer: "Our AI analyzes your preferences to create a custom 3-7 day plan including dining, sites, and logistics." }
+                ].map((f, i) => (
+                  <div key={i} className="bg-slate-50 p-6 rounded-2xl mb-4">
+                    <h4 className="font-bold text-slate-900 mb-2">{f.question}</h4>
+                    <p className="text-slate-600 text-sm">{f.answer}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Contact / Work With Us Section */}
+        <section id="contact" className="py-32 bg-slate-900 overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-1/2 h-full opacity-10">
+            <div className="absolute top-0 right-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-amber-500 via-transparent to-transparent"></div>
+          </div>
+          <div className="max-w-7xl mx-auto px-6 relative z-10">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
               <div>
-                <h2 className="text-5xl lg:text-7xl font-black tracking-tighter text-slate-900 mb-8 leading-tight">
-                  Why Fiezta is the <span className="text-[#D4AF37]">Standard</span> of Luxury.
+                <h2 className="text-5xl lg:text-7xl font-black tracking-tighter text-white mb-8 leading-tight">
+                  Work with <span className="text-[#D4AF37]">Fiezta</span> Today.
                 </h2>
-                <div className="space-y-8">
-                  <div className="flex gap-6">
-                    <div className="w-14 h-14 bg-amber-50 text-[#D4AF37] rounded-2xl flex items-center justify-center shrink-0 border border-amber-100">
-                      <Sparkles size={28} />
+                <p className="text-xl text-slate-400 mb-10 leading-relaxed max-w-xl">
+                  Ready to elevate your travel experience? Our concierge team is waiting to curate your perfect journey.
+                </p>
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4 text-white">
+                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-[#D4AF37]">
+                      <Mail size={20} />
                     </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-slate-900 mb-2">AI-Powered Itineraries</h4>
-                      <p className="text-slate-500">Our advanced AI generates personalized travel plans based on your preferences and budget in seconds.</p>
-                    </div>
+                    <span className="font-bold">{siteSettings?.contactEmail || 'concierge@fiezta.com'}</span>
                   </div>
-                  <div className="flex gap-6">
-                    <div className="w-14 h-14 bg-amber-50 text-[#D4AF37] rounded-2xl flex items-center justify-center shrink-0 border border-amber-100">
-                      <CreditCard size={28} />
+                  <div className="flex items-center gap-4 text-white">
+                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-[#D4AF37]">
+                      <Smartphone size={20} />
                     </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-slate-900 mb-2">Seamless Payments</h4>
-                      <p className="text-slate-500">Secure, automated invoicing and payment tracking for a stress-free booking experience.</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-6">
-                    <div className="w-14 h-14 bg-amber-50 text-[#D4AF37] rounded-2xl flex items-center justify-center shrink-0 border border-amber-100">
-                      <Users size={28} />
-                    </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-slate-900 mb-2">Dedicated Concierge</h4>
-                      <p className="text-slate-500">Access to professional travel agents and 24/7 support for all your needs.</p>
-                    </div>
+                    <span className="font-bold">{siteSettings?.contactPhone || '+1 (DMV) FIEZTA'}</span>
                   </div>
                 </div>
               </div>
               
-              <div className="relative">
-                <div className="absolute -top-20 -right-20 w-96 h-96 bg-amber-50 rounded-full blur-3xl opacity-50"></div>
-                <div className="relative bg-black rounded-[40px] p-8 shadow-2xl border border-amber-500/20">
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-[#D4AF37] rounded-xl flex items-center justify-center">
-                        <Sparkles className="text-white" size={20} />
-                      </div>
-                      <span className="text-white font-bold">AI Concierge</span>
+              <div className="bg-white rounded-[40px] p-8 sm:p-12 shadow-2xl">
+                <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Full Name</label>
+                      <input type="text" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all" placeholder="John Doe" />
                     </div>
-                    <div className="px-3 py-1 bg-[#D4AF37]/20 rounded-full text-xs text-[#D4AF37] font-medium uppercase tracking-widest">Live</div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                      <p className="text-white/60 text-xs mb-1 uppercase font-bold">User</p>
-                      <p className="text-white text-sm italic">"Plan a 3-day luxury trip to Paris..."</p>
-                    </div>
-                    <div className="bg-[#D4AF37]/20 p-4 rounded-2xl shadow-lg border border-[#D4AF37]/30">
-                      <p className="text-[#D4AF37] text-xs mb-1 uppercase font-bold">Fiezta AI</p>
-                      <p className="text-white text-sm">"I've designed a romantic itinerary including a private Louvre tour and Seine dinner cruise. Total budget: $1,850."</p>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Email Address</label>
+                      <input type="email" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all" placeholder="john@example.com" />
                     </div>
                   </div>
-                </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Service Interest</label>
+                    <select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all appearance-none">
+                      <option>Live Entertainment</option>
+                      <option>Travel & Tours</option>
+                      <option>Elite Rentals</option>
+                      <option>DMV Concierge</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Message</label>
+                    <textarea rows={4} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all resize-none" placeholder="How can we help you?"></textarea>
+                  </div>
+                  <button className="w-full py-5 bg-[#D4AF37] text-white rounded-2xl font-black text-lg hover:bg-amber-600 transition-all shadow-xl shadow-amber-200 uppercase tracking-widest">
+                    Send Inquiry
+                  </button>
+                </form>
               </div>
             </div>
           </div>
@@ -1359,13 +2086,20 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
               <div className="col-span-2">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 bg-[#D4AF37] rounded-xl flex items-center justify-center shadow-lg shadow-amber-200">
-                    <Globe className="text-white" size={20} />
+                  <div className="w-12 h-12 flex items-center justify-center overflow-hidden">
+                    {siteSettings?.logoUrl ? (
+                      <img src={siteSettings.logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <FieztaLogo className="w-10 h-10" />
+                    )}
                   </div>
-                  <span className="text-2xl font-black tracking-tighter text-slate-900">FIEZTA</span>
+                  <div className="flex flex-col">
+                    <span className="text-2xl font-black tracking-tighter text-slate-900 uppercase leading-none">{siteSettings?.siteName || 'FIEZTA'}</span>
+                    <span className="text-[10px] font-bold text-[#FF9900] uppercase tracking-widest mt-1">International</span>
+                  </div>
                 </div>
                 <p className="text-slate-500 max-w-sm leading-relaxed">
-                  Transforming the way you travel with automation, AI, and dedicated concierge services. Your journey starts here.
+                  {siteSettings?.siteDescription || 'Transforming the way you travel with automation, AI, and dedicated concierge services. Your journey starts here.'}
                 </p>
               </div>
               <div>
@@ -1386,13 +2120,13 @@ export default function App() {
               </div>
             </div>
             <div className="pt-12 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6">
-              <p className="text-slate-400 text-sm">© 2026 Fiezta CMS. All rights reserved.</p>
+              <p className="text-slate-400 text-sm">© 2026 {siteSettings?.siteName || 'Fiezta CMS'}. All rights reserved.</p>
               <div className="flex gap-6">
-                <a href="#" className="text-slate-400 hover:text-[#D4AF37] transition-colors"><Facebook size={20} /></a>
-                <a href="#" className="text-slate-400 hover:text-[#D4AF37] transition-colors"><Instagram size={20} /></a>
-                <a href="#" className="text-slate-400 hover:text-[#D4AF37] transition-colors"><Twitter size={20} /></a>
-                <a href="#" className="text-slate-400 hover:text-[#D4AF37] transition-colors"><Youtube size={20} /></a>
-                <a href="#" className="text-slate-400 hover:text-[#D4AF37] transition-colors"><Linkedin size={20} /></a>
+                {siteSettings?.facebook && <a href={siteSettings.facebook} className="text-slate-400 hover:text-primary transition-colors"><Facebook size={20} /></a>}
+                {siteSettings?.instagram && <a href={siteSettings.instagram} className="text-slate-400 hover:text-primary transition-colors"><Instagram size={20} /></a>}
+                {siteSettings?.twitter && <a href={siteSettings.twitter} className="text-slate-400 hover:text-primary transition-colors"><Twitter size={20} /></a>}
+                {siteSettings?.youtube && <a href={siteSettings.youtube} className="text-slate-400 hover:text-primary transition-colors"><Youtube size={20} /></a>}
+                {siteSettings?.linkedin && <a href={siteSettings.linkedin} className="text-slate-400 hover:text-primary transition-colors"><Linkedin size={20} /></a>}
               </div>
             </div>
           </div>
@@ -1403,17 +2137,53 @@ export default function App() {
 
   return (
     <div className="h-screen flex bg-slate-50 overflow-hidden font-sans">
+      {/* Sidebar - Backdrop for mobile */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-30 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ width: isSidebarOpen ? 280 : 0, opacity: isSidebarOpen ? 1 : 0 }}
-        className="bg-white border-r border-slate-200 flex flex-col relative z-20"
+        animate={{ 
+          x: isSidebarOpen ? 0 : -280,
+          width: 280,
+          opacity: 1
+        }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className={cn(
+          "bg-white border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 lg:relative z-40 lg:z-20 transition-all",
+          !isSidebarOpen && "pointer-events-none lg:pointer-events-auto lg:w-0 lg:opacity-0"
+        )}
       >
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md shadow-indigo-100">
-            <Globe className="text-white" size={20} />
+        <div className="p-6 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 flex items-center justify-center shrink-0 overflow-hidden">
+              {siteSettings?.logoUrl ? (
+                <img src={siteSettings.logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <FieztaLogo className="w-9 h-9" />
+              )}
+            </div>
+            <div className="flex flex-col overflow-hidden">
+              <span className="text-xl font-bold text-slate-900 truncate tracking-tight leading-none">{siteSettings?.siteName || 'Fiezta CMS'}</span>
+              <span className="text-[9px] font-bold text-[#FF9900] uppercase tracking-wider mt-0.5">Agency Dashboard</span>
+            </div>
           </div>
-          <span className="text-xl font-bold text-slate-900 truncate">Fiezta CMS</span>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg lg:hidden"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto custom-scrollbar">
@@ -1480,6 +2250,12 @@ export default function App() {
             label="Menus" 
             active={activeTab === 'menus'} 
             onClick={() => setActiveTab('menus')} 
+          />
+          <SidebarItem 
+            icon={Lightbulb} 
+            label="Inventions" 
+            active={activeTab === 'inventions'} 
+            onClick={() => setActiveTab('inventions')} 
           />
           <SidebarItem 
             icon={Smartphone} 
@@ -1581,6 +2357,18 @@ export default function App() {
             </>
           )}
 
+          <SidebarItem 
+            icon={Globe} 
+            label="Interactive Map" 
+            active={isWorldMapOpen} 
+            onClick={() => setIsWorldMapOpen(true)} 
+          />
+          <SidebarItem 
+            icon={Sparkles} 
+            label="Itinerary Builder" 
+            active={isItineraryBuilderOpen} 
+            onClick={() => setIsItineraryBuilderOpen(true)} 
+          />
           <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">System</div>
           <SidebarItem 
             icon={Sparkles} 
@@ -1637,37 +2425,44 @@ export default function App() {
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative">
+      <main className="flex-1 flex flex-col overflow-hidden relative w-full">
         {/* Header */}
-        <header className="h-16 bg-white border-bottom border-slate-200 flex items-center justify-between px-6 z-10">
-          <div className="flex items-center gap-4">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 z-10 shrink-0">
+          <div className="flex items-center gap-2 lg:gap-4 shrink-0">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
             >
-              {isSidebarOpen ? <X size={20} /> : <MenuIcon size={20} />}
+              <MenuIcon size={20} />
             </button>
-            <h2 className="text-lg font-bold text-slate-900 capitalize">{activeTab.replace('_', ' ')}</h2>
+            <h2 className="text-sm lg:text-lg font-bold text-slate-900 capitalize truncate max-w-[120px] sm:max-w-none">{activeTab.replace('_', ' ')}</h2>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="relative hidden md:block">
+          <div className="flex items-center gap-2 lg:gap-4">
+            <div className="relative hidden xl:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
                 placeholder="Search anything..." 
-                className="pl-10 pr-4 py-2 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 w-64 transition-all"
+                className="pl-10 pr-4 py-2 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 w-48 xl:w-64 transition-all"
               />
             </div>
             <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg relative">
               <div className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></div>
               <AlertCircle size={20} />
             </button>
+            <div className="md:hidden">
+              <img 
+                src={profile?.photoURL || `https://ui-avatars.com/api/?name=${profile?.displayName}`} 
+                className="w-8 h-8 rounded-full border border-slate-200" 
+                alt="Avatar" 
+              />
+            </div>
           </div>
         </header>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <motion.div 
@@ -1678,99 +2473,113 @@ export default function App() {
                 className="space-y-6"
               >
                 {/* Header with Export */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">Control Center</h1>
-                    <p className="text-slate-500 text-sm">Real-time overview of Fiezta's performance and operations.</p>
+                    <h1 className="text-xl lg:text-2xl font-black tracking-tighter text-slate-900">Control Center</h1>
+                    <p className="text-slate-500 text-xs sm:text-sm">Real-time overview of Fiezta's performance.</p>
                   </div>
-                  <div className="flex gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                      <Download size={18} />
-                      Export CSV
+                  <div className="flex flex-wrap gap-2 sm:gap-3">
+                    <button 
+                      onClick={() => setIsWorldMapOpen(true)}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all"
+                    >
+                      <Globe size={14} className="sm:w-4 sm:h-4" />
+                      Explore Map
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
-                      <TrendingUp size={18} />
-                      Generate Report
+                    <button 
+                      onClick={() => setIsItineraryBuilderOpen(true)}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all"
+                    >
+                      <Sparkles size={14} className="sm:w-4 sm:h-4" />
+                      AI Journey Architect
+                    </button>
+                    <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                      <Download size={14} className="sm:w-4 sm:h-4" />
+                      Export
+                    </button>
+                    <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
+                      <TrendingUp size={14} className="sm:w-4 sm:h-4" />
+                      Report
                     </button>
                   </div>
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                  <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                        <DollarSign size={24} />
+                      <div className="p-2 sm:p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                        <DollarSign size={20} className="sm:w-6 sm:h-6" />
                       </div>
                       <div className="flex flex-col items-end">
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">+18.2%</span>
-                        <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">vs last month</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">+18.2%</span>
+                        <span className="text-[8px] sm:text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest text-right">vs last month</span>
                       </div>
                     </div>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Revenue</p>
-                    <h3 className="text-3xl font-black text-slate-900 mt-1">
+                    <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest">Total Revenue</p>
+                    <h3 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 mt-1">
                       {formatCurrency(bookings.reduce((acc, b) => acc + (b.paidAmount || 0), 0))}
                     </h3>
                   </div>
                   
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                  <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                        <Briefcase size={24} />
+                      <div className="p-2 sm:p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <Briefcase size={20} className="sm:w-6 sm:h-6" />
                       </div>
                       <div className="flex flex-col items-end">
-                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">+5.4%</span>
-                        <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">vs last month</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">+5.4%</span>
+                        <span className="text-[8px] sm:text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest text-right">vs last month</span>
                       </div>
                     </div>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Bookings</p>
-                    <h3 className="text-3xl font-black text-slate-900 mt-1">{bookings.length}</h3>
+                    <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest">Total Bookings</p>
+                    <h3 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 mt-1">{bookings.length}</h3>
                   </div>
 
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                  <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                        <Users size={24} />
+                      <div className="p-2 sm:p-3 bg-blue-50 text-blue-600 rounded-xl">
+                        <Users size={20} className="sm:w-6 sm:h-6" />
                       </div>
                       <div className="flex flex-col items-end">
-                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Active</span>
-                        <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">currently online</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Active</span>
+                        <span className="text-[8px] sm:text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest text-right">currently online</span>
                       </div>
                     </div>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Active Clients</p>
-                    <h3 className="text-3xl font-black text-slate-900 mt-1">{clients.length}</h3>
+                    <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest">Active Clients</p>
+                    <h3 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 mt-1">{clients.length}</h3>
                   </div>
 
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                  <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-                        <Award size={24} />
+                      <div className="p-2 sm:p-3 bg-amber-50 text-amber-600 rounded-xl">
+                        <Award size={20} className="sm:w-6 sm:h-6" />
                       </div>
                       <div className="flex flex-col items-end">
-                        <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">98%</span>
-                        <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">satisfaction</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">98%</span>
+                        <span className="text-[8px] sm:text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest text-right">satisfaction</span>
                       </div>
                     </div>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Success Rate</p>
-                    <h3 className="text-3xl font-black text-slate-900 mt-1">94.2%</h3>
+                    <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest">Success Rate</p>
+                    <h3 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 mt-1">94.2%</h3>
                   </div>
                 </div>
 
                 {/* Charts & Activity */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-white p-8 rounded-[32px] shadow-sm border border-slate-100">
-                    <div className="flex items-center justify-between mb-8">
+                  <div className="lg:col-span-2 bg-white p-4 sm:p-8 rounded-2xl sm:rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
                       <div>
-                    <h3 className="text-xl font-black tracking-tight text-foreground">Revenue Growth</h3>
-                        <p className="text-slate-500 text-sm">Monthly performance tracking.</p>
+                        <h3 className="text-lg sm:text-xl font-black tracking-tight text-foreground">Revenue Growth</h3>
+                        <p className="text-slate-500 text-xs sm:text-sm">Monthly performance tracking.</p>
                       </div>
-                      <div className="flex gap-2">
-                        <button className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">1W</button>
-                        <button className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-100">1M</button>
-                        <button className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">1Y</button>
+                      <div className="flex gap-1 sm:gap-2">
+                        <button className="flex-1 sm:flex-none px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-[10px] sm:text-xs font-bold">1W</button>
+                        <button className="flex-1 sm:flex-none px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] sm:text-xs font-bold shadow-md shadow-indigo-100">1M</button>
+                        <button className="flex-1 sm:flex-none px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-[10px] sm:text-xs font-bold">1Y</button>
                       </div>
                     </div>
-                    <div className="h-80 w-full">
+                    <div className="h-60 sm:h-80 w-full overflow-hidden">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={[
                           { name: 'Jan', value: 4000 },
@@ -1809,8 +2618,8 @@ export default function App() {
                       </div>
                     </div>
                     <div className="space-y-6">
-                      {activityLogs.length > 0 ? activityLogs.slice(0, 6).map((log) => (
-                        <div key={log.id} className="flex gap-4 relative">
+                      {activityLogs.length > 0 ? activityLogs.slice(0, 6).map((log, idx) => (
+                        <div key={`${log.id}-${idx}`} className="flex gap-4 relative">
                           <div className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
                             <Activity size={18} className="text-indigo-600" />
                           </div>
@@ -1856,8 +2665,8 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {bookings.slice(0, 5).map((booking) => (
-                          <tr key={booking.id} className="hover:bg-slate-50/50 transition-colors">
+                        {bookings.slice(0, 5).map((booking, idx) => (
+                          <tr key={`${booking.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
@@ -1907,9 +2716,9 @@ export default function App() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {packages.length > 0 ? packages.map((pkg) => (
+                      {packages.length > 0 ? packages.map((pkg, idx) => (
                         <motion.div 
-                          key={pkg.id}
+                          key={`${pkg.id}-${idx}`}
                           whileHover={{ y: -5 }}
                           className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden group"
                         >
@@ -2007,6 +2816,8 @@ export default function App() {
                   agencyId={agencyId || ''} 
                   fields={postFields as any}
                   displayFields={['title', 'status']}
+                  allowFiltering={true}
+                  allowSorting={true}
                 />
               </motion.div>
             )}
@@ -2146,9 +2957,9 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {bookings.length > 0 ? bookings.map((booking) => (
+                        {bookings.length > 0 ? bookings.map((booking, idx) => (
                           <tr 
-                            key={booking.id} 
+                            key={`${booking.id}-${idx}`} 
                             className="hover:bg-slate-50/50 transition-colors cursor-pointer"
                             onClick={() => {
                               setSelectedBookingDetail(booking);
@@ -2189,105 +3000,105 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'messages' && (
-              <motion.div 
-                key="messages"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="h-[calc(100vh-12rem)] flex flex-col gap-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">Internal Messaging</h1>
-                    <p className="text-slate-500 text-sm">Secure communication between staff members.</p>
+          {activeTab === 'messages' && (
+            <motion.div 
+              key="messages"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="h-full flex flex-col gap-6"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-black tracking-tighter text-slate-900">Internal Messaging</h1>
+                  <p className="text-slate-500 text-sm">Secure communication between staff members.</p>
+                </div>
+                <button className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all w-full sm:w-auto">
+                  <Plus size={20} />
+                  New Message
+                </button>
+              </div>
+
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
+                <div className="bg-white rounded-2xl sm:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden flex flex-col max-h-[300px] lg:max-h-full transition-all">
+                  <div className="p-4 sm:p-6 border-b border-slate-100">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <input 
+                        type="text" 
+                        placeholder="Search conversations..."
+                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+                      />
+                    </div>
                   </div>
-                  <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
-                    <Plus size={20} />
-                    New Message
-                  </button>
+                  <div className="flex-1 overflow-y-auto">
+                    {messages.length > 0 ? messages.map((msg, idx) => (
+                      <div key={`${msg.id}-${idx}`} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors flex gap-3">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-black shrink-0">
+                          {msg.senderName.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate">{msg.senderName}</h4>
+                            <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <p className="text-xs text-slate-500 truncate">{msg.content}</p>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="p-12 text-center text-slate-400">
+                        <MessageSquare size={32} className="mx-auto mb-4 opacity-20" />
+                        <p className="text-sm font-bold">No messages yet</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
-                  <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-slate-100">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input 
-                          type="text" 
-                          placeholder="Search conversations..."
-                          className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
-                        />
+                <div className="lg:col-span-2 bg-white rounded-2xl sm:rounded-[32px] border border-slate-100 shadow-sm flex flex-col overflow-hidden min-h-[400px] lg:min-h-0">
+                  <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl sm:rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600 font-black">
+                        S
                       </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto">
-                      {messages.length > 0 ? messages.map((msg) => (
-                        <div key={msg.id} className="p-4 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors flex gap-3">
-                          <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-black shrink-0">
-                            {msg.senderName.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <h4 className="text-sm font-black text-slate-900 truncate">{msg.senderName}</h4>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                            <p className="text-xs text-slate-500 truncate">{msg.content}</p>
-                          </div>
-                        </div>
-                      )) : (
-                        <div className="p-12 text-center text-slate-400">
-                          <MessageSquare size={32} className="mx-auto mb-4 opacity-20" />
-                          <p className="text-sm font-bold">No messages yet</p>
-                        </div>
-                      )}
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900">Support Team</h3>
+                        <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Online
+                        </span>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="lg:col-span-2 bg-white rounded-[32px] border border-slate-100 shadow-sm flex flex-col overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600 font-black">
-                          S
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-black text-slate-900">Support Team</h3>
-                          <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            Online
-                          </span>
-                        </div>
+                  <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 font-black text-xs shrink-0">S</div>
+                      <div className="bg-slate-50 p-3 sm:p-4 rounded-2xl rounded-tl-none max-w-[90%] sm:max-w-[80%]">
+                        <p className="text-xs sm:text-sm text-slate-700">Hi team, we have a new booking for the Santorini package. Can someone check the availability for the luxury villa?</p>
                       </div>
                     </div>
-                    <div className="flex-1 p-6 overflow-y-auto space-y-4">
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 font-black text-xs shrink-0">S</div>
-                        <div className="bg-slate-50 p-4 rounded-2xl rounded-tl-none max-w-[80%]">
-                          <p className="text-sm text-slate-700">Hi team, we have a new booking for the Santorini package. Can someone check the availability for the luxury villa?</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3 flex-row-reverse">
-                        <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-xs shrink-0">Y</div>
-                        <div className="bg-indigo-600 p-4 rounded-2xl rounded-tr-none max-w-[80%] text-white shadow-lg shadow-indigo-100">
-                          <p className="text-sm">I'm on it! Checking with the provider now.</p>
-                        </div>
+                    <div className="flex gap-3 flex-row-reverse">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-xs shrink-0">Y</div>
+                      <div className="bg-indigo-600 p-3 sm:p-4 rounded-2xl rounded-tr-none max-w-[90%] sm:max-w-[80%] text-white shadow-lg shadow-indigo-100">
+                        <p className="text-xs sm:text-sm">I'm on it! Checking with the provider now.</p>
                       </div>
                     </div>
-                    <div className="p-6 border-t border-slate-100">
-                      <div className="relative">
-                        <input 
-                          type="text" 
-                          placeholder="Type your message..."
-                          className="w-full pl-6 pr-14 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
-                        />
-                        <button className="absolute right-2 top-2 p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100">
-                          <Send size={20} />
-                        </button>
-                      </div>
+                  </div>
+                  <div className="p-4 sm:p-6 border-t border-slate-100">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        placeholder="Type your message..."
+                        className="w-full pl-6 pr-14 py-3 sm:py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all outline-none text-sm"
+                      />
+                      <button className="absolute right-2 top-2 p-2 sm:p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100">
+                        <Send size={18} className="sm:w-5 sm:h-5" />
+                      </button>
                     </div>
                   </div>
                 </div>
-              </motion.div>
-            )}
+              </div>
+            </motion.div>
+          )}
 
             {activeTab === 'newsletter' && (
               <motion.div 
@@ -2327,8 +3138,8 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {subscribers.map((sub) => (
-                            <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
+                          {subscribers.map((sub, idx) => (
+                            <tr key={`${sub.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
@@ -2417,8 +3228,8 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {accommodations.map((acc) => (
-                    <div key={acc.id} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
+                  {accommodations.map((acc, idx) => (
+                    <div key={`${acc.id}-${idx}`} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
                       <div className="h-48 bg-slate-200 relative">
                         <img src={acc.imageUrl || 'https://picsum.photos/seed/hotel/800/600'} className="w-full h-full object-cover" alt={acc.name} />
                         <div className="absolute top-4 right-4">
@@ -2469,8 +3280,8 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {transport.map((item) => (
-                    <div key={item.id} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
+                  {transport.map((item, idx) => (
+                    <div key={`${item.id}-${idx}`} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
                       <div className="h-48 bg-slate-200 relative">
                         <img src={item.imageUrl || 'https://picsum.photos/seed/car/800/600'} className="w-full h-full object-cover" alt={item.provider} />
                         <div className="absolute top-4 right-4">
@@ -2602,17 +3413,18 @@ export default function App() {
                   </div>
                 </div>
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50/50">
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Reference</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Client</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
+                  <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left min-w-[600px]">
+                      <thead>
+                        <tr className="bg-slate-50/50">
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Reference</th>
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Client</th>
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
                       {bookings.filter(b => b.paidAmount > 0).map((b) => (
                         <tr key={b.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4 text-sm font-mono text-slate-500">#{b.id.slice(0, 8)}</td>
@@ -2634,8 +3446,9 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
-              </motion.div>
-            )}
+              </div>
+            </motion.div>
+          )}
 
             {activeTab === 'documents' && (
               <motion.div 
@@ -2742,8 +3555,8 @@ export default function App() {
                         <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full uppercase">Live Sync Active</span>
                       </div>
                       <div className="divide-y divide-slate-50">
-                        {wpPosts.length > 0 ? wpPosts.map((post) => (
-                          <div key={post.id} className="p-6 hover:bg-slate-50 transition-colors group">
+                        {wpPosts.length > 0 ? wpPosts.map((post, idx) => (
+                          <div key={`${post.id}-${idx}`} className="p-6 hover:bg-slate-50 transition-colors group">
                             <div className="flex items-start justify-between">
                               <div className="space-y-1">
                                 <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{post.title}</h4>
@@ -2809,6 +3622,25 @@ export default function App() {
               </motion.div>
             )}
 
+            {activeTab === 'inventions' && (
+              <motion.div 
+                key="inventions"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <GenericCRUD 
+                  entityName="Invention" 
+                  collectionName="inventions" 
+                  agencyId={agencyId || ''} 
+                  fields={inventionFields as any}
+                  displayFields={['title', 'status']}
+                  allowFiltering={true}
+                  allowSorting={true}
+                />
+              </motion.div>
+            )}
+
             {activeTab === 'social' && (
               <SocialDashboard agencyId={agencyId!} />
             )}
@@ -2825,6 +3657,12 @@ export default function App() {
               <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[
+                    { name: 'Services', collection: 'services', fields: serviceFields, display: ['name', 'category', 'price', 'isActive'] },
+                    { name: 'Reviews', collection: 'reviews', fields: reviewFields, display: ['customerName', 'rating'] },
+                    { name: 'FAQs', collection: 'faqs', fields: faqFields, display: ['question', 'order'] },
+                    { name: 'Pages', collection: 'pages', fields: pageFields, display: ['title', 'slug', 'status'] },
+                    { name: 'Inventions', collection: 'inventions', fields: inventionFields, display: ['title', 'status'] },
+                    { name: 'Menus', collection: 'menus', fields: menuFields, display: ['title', 'location', 'isActive'] },
                     { name: 'Destinations', collection: 'destinations', fields: [
                       { name: 'name', label: 'Name', type: 'text', required: true },
                       { name: 'description', label: 'Description', type: 'textarea' },
@@ -2832,10 +3670,10 @@ export default function App() {
                     ], display: ['name', 'description'] },
                     { name: 'Coupons', collection: 'coupons', fields: [
                       { name: 'code', label: 'Code', type: 'text', required: true },
-                      { name: 'discount', label: 'Discount %', type: 'number', required: true },
-                      { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
+                      { name: 'discountValue', label: 'Discount', type: 'number', required: true },
+                      { name: 'discountType', label: 'Type', type: 'select', options: ['percentage', 'fixed'] },
                       { name: 'isActive', label: 'Active', type: 'boolean' }
-                    ], display: ['code', 'discount', 'isActive'] },
+                    ], display: ['code', 'discountValue', 'isActive'] },
                     { name: 'Subscribers', collection: 'subscribers', fields: [
                       { name: 'email', label: 'Email', type: 'text', required: true },
                       { name: 'status', label: 'Status', type: 'select', options: ['active', 'unsubscribed'] }
@@ -2940,8 +3778,8 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {auditLogs.length > 0 ? auditLogs.map((log) => (
-                          <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                        {auditLogs.length > 0 ? auditLogs.map((log, idx) => (
+                          <tr key={`${log.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
                               <span className="text-xs font-mono text-slate-500">{new Date(log.timestamp).toLocaleString()}</span>
                             </td>
@@ -3423,7 +4261,26 @@ export default function App() {
 
         {/* Booking Wizard */}
         <AnimatePresence>
-          {isBookingModalOpen && selectedPackage && profile && (
+          {isItineraryBuilderOpen && profile && (
+            <AIItineraryBuilder 
+              user={profile} 
+              onClose={() => setIsItineraryBuilderOpen(false)} 
+            />
+          )}
+
+          {isWorldMapOpen && (
+            <InteractiveMap 
+              packages={packages} 
+              onSelectPackage={(pkg) => {
+                setSelectedPackage(pkg);
+                setIsWorldMapOpen(false);
+                setIsBookingModalOpen(true);
+              }} 
+              onClose={() => setIsWorldMapOpen(false)}
+            />
+          )}
+
+          {isBookingModalOpen && profile && (
             <BookingWizard 
               pkg={selectedPackage}
               user={profile}

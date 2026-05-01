@@ -248,30 +248,30 @@ export const VlogManagement: React.FC<VlogManagementProps> = ({ agencyId }) => {
       {/* Create/Edit Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden"
+              className="bg-white rounded-none sm:rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col h-full sm:h-auto sm:max-h-[90vh]"
             >
-              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="p-6 sm:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
                 <div>
-                  <h2 className="text-2xl font-black tracking-tighter text-slate-900">
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-slate-900">
                     {editingVlog ? 'Edit Vlog' : 'Create New Vlog'}
                   </h2>
-                  <p className="text-slate-500 text-sm">Fill in the details for your video content.</p>
+                  <p className="text-slate-500 text-xs sm:text-sm">Fill in the details for your video content.</p>
                 </div>
                 <button 
                   onClick={() => setIsModalOpen(false)}
-                  className="p-3 hover:bg-slate-200 rounded-2xl transition-colors"
+                  className="p-2 sm:p-3 hover:bg-slate-200 rounded-2xl transition-colors"
                 >
                   <MoreVertical size={24} />
                 </button>
               </div>
 
-              <form onSubmit={handleSave} className="p-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <form onSubmit={handleSave} className="p-6 sm:p-8 space-y-4 sm:space-y-6 overflow-y-auto flex-1 custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Vlog Title</label>
                     <input 

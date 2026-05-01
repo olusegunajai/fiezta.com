@@ -34,26 +34,27 @@ export const SocialCalendar: React.FC<SocialCalendarProps> = ({ posts }) => {
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm"
+      className="bg-white p-4 sm:p-8 rounded-2xl sm:rounded-[40px] border border-slate-100 shadow-sm"
     >
-      <div className="flex items-center justify-between mb-10">
-        <div className="flex items-center gap-6">
-          <h2 className="text-2xl font-black text-slate-900">{monthName} {year}</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-10 gap-4">
+        <div className="flex items-center gap-4 sm:gap-6">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900">{monthName} {year}</h2>
           <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl">
-            <button onClick={prevMonth} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all"><ChevronLeft size={18} /></button>
-            <button onClick={nextMonth} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all"><ChevronRight size={18} /></button>
+            <button onClick={prevMonth} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all"><ChevronLeft size={16} /></button>
+            <button onClick={nextMonth} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all"><ChevronRight size={16} /></button>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            <button className="px-4 py-1.5 bg-white text-slate-900 rounded-lg text-xs font-bold shadow-sm">Month</button>
-            <button className="px-4 py-1.5 text-slate-500 rounded-lg text-xs font-bold">Week</button>
-            <button className="px-4 py-1.5 text-slate-500 rounded-lg text-xs font-bold">Day</button>
+          <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+            <button className="flex-1 sm:flex-none px-4 py-1.5 bg-white text-slate-900 rounded-lg text-[10px] sm:text-xs font-bold shadow-sm">Month</button>
+            <button className="flex-1 sm:flex-none px-4 py-1.5 text-slate-500 rounded-lg text-[10px] sm:text-xs font-bold">Week</button>
+            <button className="flex-1 sm:flex-none px-4 py-1.5 text-slate-500 rounded-lg text-[10px] sm:text-xs font-bold">Day</button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-px bg-slate-100 border border-slate-100 rounded-3xl overflow-hidden">
+      <div className="overflow-x-auto custom-scrollbar -mx-4 sm:mx-0 px-4 sm:px-0">
+        <div className="grid grid-cols-7 gap-px bg-slate-100 border border-slate-100 rounded-2xl sm:rounded-3xl overflow-hidden min-w-[700px]">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="bg-slate-50 p-4 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">{day}</div>
         ))}
@@ -100,6 +101,7 @@ export const SocialCalendar: React.FC<SocialCalendarProps> = ({ posts }) => {
           );
         })}
       </div>
-    </motion.div>
+    </div>
+  </motion.div>
   );
 };

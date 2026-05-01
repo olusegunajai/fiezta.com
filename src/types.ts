@@ -323,6 +323,7 @@ export interface Booking {
   packageName: string;
   travelDate: string;
   passengers: number;
+  travelerDetails?: { name: string; email: string; phone: string; passport: string }[];
   totalAmount: number;
   paidAmount: number;
   status: BookingStatus;

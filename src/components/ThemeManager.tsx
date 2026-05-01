@@ -23,7 +23,10 @@ import {
   History,
   Zap,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Download,
+  Upload,
+  Globe
 } from 'lucide-react';
 import { 
   collection, 
@@ -62,7 +65,9 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [isWpImporting, setIsWpImporting] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [wpThemeUrl, setWpThemeUrl] = useState('');
   const [activeTheme, setActiveTheme] = useState<Theme | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
@@ -178,6 +183,42 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
       console.error("AI Generation Error:", error);
     } finally {
       setIsAiGenerating(false);
+    }
+  };
+
+  const handleWpImport = async () => {
+    if (!wpThemeUrl) return;
+    setIsWpImporting(true);
+    try {
+      // Simulate WordPress theme import
+      // In a real app, this would fetch theme data from WP API or a proxy
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const mockWpTheme = {
+        name: "WP Imported: " + wpThemeUrl.split('/').pop() || "New Theme",
+        description: "Imported directly from WordPress repository.",
+        config: {
+          ...DEFAULT_THEME_CONFIG,
+          primaryColor: '#21759b', // WordPress Blue
+          secondaryColor: '#d54e21', // WordPress Orange
+          fontFamily: 'Open Sans'
+        },
+        agencyId,
+        isActive: false,
+        isAdminTheme: false,
+        createdAt: new Date().toISOString(),
+        isWpTheme: true,
+        wpSource: wpThemeUrl
+      };
+
+      await addDoc(collection(db, 'themes'), mockWpTheme);
+      setWpThemeUrl('');
+      alert("WordPress theme imported successfully!");
+    } catch (error) {
+      console.error("WP Import Error:", error);
+      alert("Failed to import WordPress theme.");
+    } finally {
+      setIsWpImporting(false);
     }
   };
 
@@ -326,35 +367,76 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
       </div>
 
       {/* AI Creator Section */}
-      <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[40px] p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-12 opacity-10">
-          <Palette size={200} />
-        </div>
-        <div className="relative z-10 max-w-2xl">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
-              <Sparkles className="text-amber-300" size={24} />
-            </div>
-            <h2 className="text-2xl font-black tracking-tight">AI Theme Creator</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[40px] p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-12 opacity-10">
+            <Sparkles size={120} />
           </div>
-          <p className="text-indigo-100 mb-8 text-lg">Describe the vibe you want for your site, and our AI will generate a complete color palette and design configuration for you.</p>
-          
-          <div className="flex gap-4">
-            <input 
-              type="text" 
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="e.g. A luxury tropical resort with sunset colors and elegant typography"
-              className="flex-1 px-6 py-4 bg-white/10 border border-white/20 rounded-2xl text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all backdrop-blur-md"
-            />
-            <button 
-              onClick={handleAiGenerate}
-              disabled={isAiGenerating || !aiPrompt}
-              className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold hover:bg-indigo-50 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
-            >
-              {isAiGenerating ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
-              Generate
-            </button>
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                <Sparkles className="text-amber-300" size={24} />
+              </div>
+              <h2 className="text-2xl font-black tracking-tight">AI Theme Creator</h2>
+            </div>
+            <p className="text-indigo-100 mb-6 text-sm">Describe the vibe you want, and our AI will generate a complete design configuration for you.</p>
+            
+            <div className="flex flex-col gap-3">
+              <input 
+                type="text" 
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="e.g. A luxury tropical resort..."
+                className="w-full px-5 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all backdrop-blur-md text-sm"
+              />
+              <button 
+                onClick={handleAiGenerate}
+                disabled={isAiGenerating || !aiPrompt}
+                className="w-full py-3 bg-white text-indigo-600 rounded-2xl font-bold hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
+              >
+                {isAiGenerating ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
+                Generate with AI
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[40px] p-8 text-white shadow-2xl shadow-slate-200 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-12 opacity-10">
+            <Globe size={120} />
+          </div>
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                <Globe className="text-sky-400" size={24} />
+              </div>
+              <h2 className="text-2xl font-black tracking-tight">WP Theme Import</h2>
+            </div>
+            <p className="text-slate-300 mb-6 text-sm">Install WordPress themes directly without plugins. Enter a theme URL or upload a .zip file.</p>
+            
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={wpThemeUrl}
+                  onChange={(e) => setWpThemeUrl(e.target.value)}
+                  placeholder="Theme URL or Slug (e.g. Astra)"
+                  className="flex-1 px-5 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all backdrop-blur-md text-sm"
+                />
+                <label className="cursor-pointer p-3 bg-white/10 border border-white/20 rounded-2xl hover:bg-white/20 transition-all">
+                  <Upload size={20} />
+                  <input type="file" accept=".zip" className="hidden" />
+                </label>
+              </div>
+              <button 
+                onClick={handleWpImport}
+                disabled={isWpImporting || !wpThemeUrl}
+                className="w-full py-3 bg-sky-500 text-white rounded-2xl font-bold hover:bg-sky-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl"
+              >
+                {isWpImporting ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
+                Install WP Theme
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -448,20 +530,25 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
       {/* Theme Editor Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-[40px] w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh]"
+              className="bg-white rounded-none sm:rounded-[40px] w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-full sm:h-[90vh]"
             >
               {/* Sidebar / Form */}
-              <div className="w-full md:w-[400px] border-r border-slate-100 overflow-y-auto p-8 bg-slate-50/50">
-                <div className="mb-8">
-                  <h2 className="text-2xl font-black tracking-tighter text-slate-900">
-                    {editingTheme ? 'Edit Theme' : 'Create Theme'}
-                  </h2>
-                  <p className="text-slate-500 text-sm">Configure your theme settings below.</p>
+              <div className="w-full md:w-[400px] border-r border-slate-100 overflow-y-auto p-6 sm:p-8 bg-slate-50/50 flex-1 sm:flex-none">
+                <div className="mb-6 sm:mb-8 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-slate-900">
+                      {editingTheme ? 'Edit Theme' : 'Create Theme'}
+                    </h2>
+                    <p className="text-slate-500 text-xs sm:text-sm">Configure your theme settings below.</p>
+                  </div>
+                  <button className="md:hidden p-2 hover:bg-slate-200 rounded-xl" onClick={() => setIsModalOpen(false)}>
+                    <RefreshCw size={20} />
+                  </button>
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-6">

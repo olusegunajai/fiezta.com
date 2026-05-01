@@ -11,7 +11,7 @@ import {
   serverTimestamp,
   writeBatch
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { Role, UserRole } from '../types';
 import { 
   Shield, 
@@ -59,7 +59,7 @@ export const RoleManager: React.FC<RoleManagerProps> = ({ agencyId }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!agencyId) return;
+    if (!agencyId || !auth.currentUser) return;
 
     const q = query(collection(db, 'roles'), where('agencyId', '==', agencyId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -72,17 +72,20 @@ export const RoleManager: React.FC<RoleManagerProps> = ({ agencyId }) => {
       setLoading(false);
 
       // Seed default roles if none exist
-      if (rolesData.length === 0 && !loading) {
+      if (rolesData.length === 0) {
         seedDefaultRoles();
       }
     }, (err) => {
       console.error("Error fetching roles:", err);
-      setError("Failed to load roles. Check permissions.");
+      // Only set error if we are still authenticated to avoid flashing permission errors on logout
+      if (auth.currentUser) {
+        setError("Failed to load roles. Check permissions.");
+      }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [agencyId]);
+  }, [agencyId, auth.currentUser]);
 
   const seedDefaultRoles = async () => {
     try {
@@ -268,14 +271,14 @@ export const RoleManager: React.FC<RoleManagerProps> = ({ agencyId }) => {
 
       <AnimatePresence>
         {isEditing && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-background/80 backdrop-blur-sm">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-2xl bg-card border rounded-2xl shadow-2xl overflow-hidden"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-2xl bg-card border-none sm:border rounded-none sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-full sm:h-auto sm:max-h-[90vh]"
             >
-              <div className="p-6 border-b flex items-center justify-between">
+              <div className="p-6 border-b flex items-center justify-between shrink-0">
                 <h3 className="text-xl font-bold">
                   {currentRole?.id ? 'Edit Role' : 'Create New Role'}
                 </h3>
@@ -290,7 +293,7 @@ export const RoleManager: React.FC<RoleManagerProps> = ({ agencyId }) => {
                 </button>
               </div>
 
-              <div className="p-6 max-h-[70vh] overflow-y-auto space-y-6">
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Role Name</label>

@@ -122,23 +122,23 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ agencyId, accounts, on
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-[40px] w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+        className="bg-white sm:rounded-[40px] w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl overflow-hidden shadow-2xl flex flex-col"
       >
         {/* Header */}
-        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="p-6 sm:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
           <div>
-            <h2 className="text-2xl font-black text-slate-900">Create New Post</h2>
-            <p className="text-slate-500 text-sm">Design and schedule your content across multiple platforms.</p>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900">Create New Post</h2>
+            <p className="text-slate-500 text-xs sm:text-sm">Design and schedule your content across multiple platforms.</p>
           </div>
-          <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-2xl transition-all"><X size={24} /></button>
+          <button onClick={onClose} className="p-2 sm:p-3 hover:bg-slate-200 rounded-xl sm:rounded-2xl transition-all"><X size={24} /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
             {/* Editor Side */}
             <div className="space-y-8">
               {/* Platform Selection */}

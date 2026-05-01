@@ -44,6 +44,8 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
+import { PageBuilder } from './PageBuilder';
+
 interface GenericCRUDProps {
   entityName: string;
   collectionName: string;
@@ -51,7 +53,7 @@ interface GenericCRUDProps {
   fields: {
     name: string;
     label: string;
-    type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'date' | 'url' | 'hidden' | 'json' | 'image' | 'html';
+    type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'date' | 'url' | 'hidden' | 'json' | 'image' | 'html' | 'page-builder';
     options?: string[];
     required?: boolean;
     hidden?: boolean;
@@ -59,6 +61,8 @@ interface GenericCRUDProps {
   }[];
   displayFields: string[];
   fixedFilters?: Record<string, any>;
+  allowFiltering?: boolean;
+  allowSorting?: boolean;
 }
 
 export const GenericCRUD: React.FC<GenericCRUDProps> = ({ 
@@ -67,13 +71,18 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
   agencyId, 
   fields,
   displayFields,
-  fixedFilters
+  fixedFilters,
+  allowFiltering = false,
+  allowSorting = false
 }) => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilter, setActiveFilter] = useState<Record<string, any>>({});
+  const [sortBy, setSortBy] = useState<string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [formData, setFormData] = useState<any>({});
 
   useEffect(() => {
@@ -92,7 +101,15 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
       });
     }
 
-    q = query(q, orderBy('createdAt', 'desc'));
+    if (activeFilter) {
+      Object.entries(activeFilter).forEach(([field, value]) => {
+        if (value) {
+          q = query(q, where(field, '==', value));
+        }
+      });
+    }
+
+    q = query(q, orderBy(sortBy, sortOrder));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -101,6 +118,38 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
     
     return () => unsubscribe();
   }, [collectionName, agencyId]);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredData.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredData.map(item => item.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (window.confirm(`Are you sure you want to delete ${selectedIds.size} selected records?`)) {
+      try {
+        const deletePromises = Array.from(selectedIds).map(id => deleteDoc(doc(db, collectionName, id)));
+        await Promise.all(deletePromises);
+        setSelectedIds(new Set());
+      } catch (error) {
+        console.error(`Error bulk deleting ${entityName}:`, error);
+      }
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,15 +191,58 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tighter text-slate-900">{entityName} Management</h1>
-          <p className="text-slate-500 text-sm">Manage all your {entityName.toLowerCase()} records in one place.</p>
+          <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-slate-900">{entityName}</h1>
+          <p className="text-slate-500 text-xs sm:text-sm">Manage all your {entityName.toLowerCase()} records.</p>
         </div>
-        <div className="flex gap-3">
-          <button className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
-            <Download size={20} />
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          {selectedIds.size > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-indigo-50 border border-indigo-100 rounded-2xl"
+            >
+              <span className="text-xs sm:text-sm font-bold text-indigo-600">{selectedIds.size} selected</span>
+              
+              {fields.some(f => f.name === 'status') && (
+                <select 
+                  onChange={async (e) => {
+                    const newStatus = e.target.value;
+                    if (!newStatus) return;
+                    if (window.confirm(`Update status to "${newStatus}" for ${selectedIds.size} records?`)) {
+                      try {
+                        const updatePromises = Array.from(selectedIds).map(id => 
+                          updateDoc(doc(db, collectionName, id), { status: newStatus, updatedAt: new Date().toISOString() })
+                        );
+                        await Promise.all(updatePromises);
+                        setSelectedIds(new Set());
+                      } catch (err) {
+                        console.error("Bulk status update error:", err);
+                      }
+                    }
+                  }}
+                  className="text-[10px] sm:text-xs font-bold bg-white border border-indigo-200 rounded-lg px-2 py-1 text-indigo-600 focus:outline-none"
+                >
+                  <option value="">Bulk Status</option>
+                  {fields.find(f => f.name === 'status')?.options?.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              )}
+
+              <button 
+                onClick={handleBulkDelete}
+                className="p-1 sm:p-2 text-rose-600 hover:bg-rose-100 rounded-xl transition-all"
+                title="Bulk Delete"
+              >
+                <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+              </button>
+            </motion.div>
+          )}
+          <button className="flex-1 sm:flex-none flex items-center justify-center p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
+            <Download size={18} className="sm:w-5 sm:h-5" />
           </button>
           <button 
             onClick={() => {
@@ -164,38 +256,71 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
               setFormData(initialData);
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all text-sm sm:text-base"
           >
-            <Plus size={20} />
-            Add {entityName}
+            <Plus size={18} className="sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline">Add</span> {entityName}
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div className="relative w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+      <div className="bg-white rounded-2xl sm:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+          <div className="relative w-full sm:w-80 lg:w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 sm:w-[18px] sm:h-[18px]" size={16} />
             <input 
               type="text" 
               placeholder={`Search ${entityName.toLowerCase()}...`} 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+              className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 bg-white border border-slate-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
             />
           </div>
-          <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
-              <Filter size={16} />
-              Filter
+          <div className="flex gap-2 shrink-0">
+            {allowFiltering && fields.some(f => f.name === 'status') && (
+              <select 
+                onChange={(e) => setActiveFilter({ ...activeFilter, status: e.target.value })}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-600 focus:outline-none"
+              >
+                <option value="">All Status</option>
+                {fields.find(f => f.name === 'status')?.options?.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            )}
+            {allowSorting && (
+              <select 
+                onChange={(e) => {
+                  const [field, order] = e.target.value.split(':');
+                  setSortBy(field);
+                  setSortOrder(order as 'asc' | 'desc');
+                }}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-600 focus:outline-none"
+              >
+                <option value="createdAt:desc">Newest First</option>
+                <option value="createdAt:asc">Oldest First</option>
+                <option value="updatedAt:desc">Recently Updated</option>
+              </select>
+            )}
+            <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
+              <Filter size={14} className="sm:w-4 sm:h-4" />
+              More Filters
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50/50">
+                <th className="px-6 py-4 w-10">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.size === filteredData.length && filteredData.length > 0}
+                    onChange={toggleSelectAll}
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                </th>
                 {displayFields.map(field => (
                   <th key={field} className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     {fields.find(f => f.name === field)?.label || field}
@@ -213,7 +338,18 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                   </td>
                 </tr>
               ) : filteredData.length > 0 ? filteredData.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                <tr key={item.id} className={cn(
+                  "hover:bg-slate-50/50 transition-colors group",
+                  selectedIds.has(item.id) && "bg-indigo-50/30"
+                )}>
+                  <td className="px-6 py-4">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => toggleSelect(item.id)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </td>
                   {displayFields.map(field => (
                     <td key={field} className="px-6 py-4">
                       <span className="text-sm font-bold text-slate-700">
@@ -265,29 +401,29 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
       {/* Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden"
+              className="bg-white sm:rounded-[40px] w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl shadow-2xl overflow-hidden flex flex-col"
             >
-              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="p-6 sm:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
                 <div>
-                  <h2 className="text-2xl font-black tracking-tighter text-slate-900">
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-slate-900">
                     {editingItem ? `Edit ${entityName}` : `Add ${entityName}`}
                   </h2>
-                  <p className="text-slate-500 text-sm">Fill in the details for the {entityName.toLowerCase()} record.</p>
+                  <p className="text-slate-500 text-xs sm:text-sm">Fill in the details for the {entityName.toLowerCase()} record.</p>
                 </div>
                 <button 
                   onClick={() => setIsModalOpen(false)}
-                  className="p-3 hover:bg-slate-200 rounded-2xl transition-colors"
+                  className="p-2 sm:p-3 hover:bg-slate-200 rounded-xl sm:rounded-2xl transition-colors"
                 >
-                  <MoreVertical size={24} />
+                  <X size={24} />
                 </button>
               </div>
 
-              <form onSubmit={handleSave} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+              <form onSubmit={handleSave} className="flex-1 p-6 sm:p-8 space-y-4 sm:space-y-6 overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {fields.filter(f => !f.hidden).map(field => (
                     <div key={field.name} className={cn("space-y-2", field.type === 'textarea' && "md:col-span-2")}>
@@ -348,6 +484,13 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                             value={formData[field.name] || ''}
                             onChange={(content) => setFormData({...formData, [field.name]: content})}
                             className="min-h-[200px]"
+                          />
+                        </div>
+                      ) : field.type === 'page-builder' ? (
+                        <div className="md:col-span-2">
+                          <PageBuilder 
+                            value={formData[field.name] || []} 
+                            onChange={(val) => setFormData({...formData, [field.name]: val})} 
                           />
                         </div>
                       ) : field.type === 'textarea' ? (

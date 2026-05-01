@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ChevronRight, 
@@ -12,59 +12,103 @@ import {
   Upload,
   X,
   Plus,
-  Loader2
+  Loader2,
+  Globe
 } from 'lucide-react';
 import { TravelPackage, Booking, UserProfile } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 interface BookingWizardProps {
-  pkg: TravelPackage;
+  pkg: TravelPackage | null;
   user: UserProfile;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 const steps = [
-  { id: 1, title: 'Travel Details', icon: Calendar },
-  { id: 2, title: 'Travelers', icon: Users },
-  { id: 3, title: 'Documents', icon: FileText },
-  { id: 4, title: 'Visa Assistance', icon: ShieldCheck },
-  { id: 5, title: 'Review & Pay', icon: CreditCard },
+  { id: 1, title: 'Select Package', icon: Globe },
+  { id: 2, title: 'Travel Details', icon: Calendar },
+  { id: 3, title: 'Travelers', icon: Users },
+  { id: 4, title: 'Documents', icon: FileText },
+  { id: 5, title: 'Visa Assistance', icon: ShieldCheck },
+  { id: 6, title: 'Review & Pay', icon: CreditCard },
 ];
 
 export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose, onSuccess }) => {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(pkg ? 2 : 1);
+  const [selectedPkg, setSelectedPkg] = useState<TravelPackage | null>(pkg);
+  const [packages, setPackages] = useState<TravelPackage[]>([]);
   const [formData, setFormData] = useState({
     travelDate: '',
     travelers: 1,
+    travelerDetails: [{ name: user.displayName, email: user.email, phone: user.phoneNumber || '', passport: '' }],
     notes: '',
     visaRequired: false,
     documents: [] as string[],
     isDraft: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingPackages, setIsLoadingPackages] = useState(false);
 
-  const handleNext = () => setCurrentStep(prev => Math.min(prev + 1, steps.length));
-  const handleBack = () => setCurrentStep(prev => Math.max(prev - 1, 1));
+  useEffect(() => {
+    if (!selectedPkg && currentStep === 1) {
+      const fetchPackages = async () => {
+        setIsLoadingPackages(true);
+        try {
+          const q = query(collection(db, 'packages'), where('status', '==', 'active'));
+          const snapshot = await getDocs(q);
+          setPackages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TravelPackage[]);
+        } catch (error) {
+          console.error("Error fetching packages:", error);
+        } finally {
+          setIsLoadingPackages(false);
+        }
+      };
+      fetchPackages();
+    }
+  }, [selectedPkg, currentStep]);
+
+  const handleNext = () => {
+    if (currentStep === 1 && !selectedPkg) return;
+    setCurrentStep(prev => Math.min(prev + 1, steps.length));
+  };
+  const handleBack = () => setCurrentStep(prev => Math.max(prev - 1, pkg ? 2 : 1));
+
+  const updateTravelerCount = (count: number) => {
+    const newCount = Math.max(1, count);
+    setFormData(prev => {
+      const newDetails = [...prev.travelerDetails];
+      if (newCount > prev.travelerDetails.length) {
+        for (let i = prev.travelerDetails.length; i < newCount; i++) {
+          newDetails.push({ name: '', email: '', phone: '', passport: '' });
+        }
+      } else {
+        newDetails.splice(newCount);
+      }
+      return { ...prev, travelers: newCount, travelerDetails: newDetails };
+    });
+  };
 
   const handleSubmit = async (isDraft: boolean = false) => {
+    if (!selectedPkg) return;
     setIsSubmitting(true);
     try {
       const bookingData: Omit<Booking, 'id'> = {
-        agencyId: pkg.agencyId,
+        agencyId: selectedPkg.agencyId,
         clientId: user.uid,
         clientName: user.displayName,
         clientEmail: user.email,
-        packageId: pkg.id,
-        packageName: pkg.title,
+        packageId: selectedPkg.id,
+        packageName: selectedPkg.title,
         status: isDraft ? 'draft' : 'pending',
         travelDate: formData.travelDate || new Date().toISOString(),
         passengers: formData.travelers,
+        travelerDetails: formData.travelerDetails,
         notes: formData.notes,
-        totalAmount: pkg.price * formData.travelers,
+        totalAmount: selectedPkg.price * formData.travelers,
         paidAmount: 0,
         paymentStatus: 'unpaid',
         currentStep,
@@ -89,17 +133,19 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-zinc-900 border border-amber-500/20 rounded-[32px] w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+        className="bg-zinc-900 sm:border sm:border-amber-500/20 sm:rounded-[32px] w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl overflow-hidden shadow-2xl flex flex-col"
       >
         {/* Header */}
-        <div className="p-8 border-b border-white/5 flex items-center justify-between bg-black/20">
+        <div className="p-6 sm:p-8 border-b border-white/5 flex items-center justify-between bg-black/20 shrink-0">
           <div>
-            <h2 className="text-2xl font-serif text-amber-500">Book Your Journey</h2>
-            <p className="text-zinc-500 text-sm">Experience {pkg.title} with Fiezta Royal Service.</p>
+            <h2 className="text-xl sm:text-2xl font-serif text-amber-500">Book Your Journey</h2>
+            <p className="text-zinc-500 text-xs sm:text-sm">
+              {selectedPkg ? `Experience ${selectedPkg.title} with Fiezta Royal Service.` : 'Select your dream destination to begin.'}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-400">
             <X size={24} />
@@ -107,8 +153,8 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
         </div>
 
         {/* Progress Bar */}
-        <div className="px-8 py-6 bg-black/40 border-b border-white/5">
-          <div className="flex items-center justify-between relative">
+        <div className="px-4 sm:px-8 py-4 sm:py-6 bg-black/40 border-b border-white/5 overflow-x-auto custom-scrollbar shrink-0">
+          <div className="flex items-center justify-between relative min-w-[500px] sm:min-w-0">
             <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/5 -translate-y-1/2 z-0"></div>
             <div 
               className="absolute top-1/2 left-0 h-0.5 bg-amber-500 -translate-y-1/2 z-0 transition-all duration-500"
@@ -123,15 +169,15 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
               return (
                 <div key={step.id} className="relative z-10 flex flex-col items-center">
                   <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300",
+                    "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300",
                     isActive ? "bg-amber-500 border-amber-500 text-black scale-110 shadow-lg shadow-amber-500/20" : 
                     isCompleted ? "bg-amber-500/20 border-amber-500 text-amber-500" : 
                     "bg-zinc-800 border-white/10 text-zinc-500"
                   )}>
-                    {isCompleted ? <CheckCircle2 size={20} /> : <Icon size={20} />}
+                    {isCompleted ? <CheckCircle2 size={16} className="sm:w-5 sm:h-5" /> : <Icon size={16} className="sm:w-5 sm:h-5" />}
                   </div>
                   <span className={cn(
-                    "text-[10px] font-bold uppercase tracking-widest mt-2",
+                    "text-[8px] sm:text-[10px] font-bold uppercase tracking-widest mt-2 whitespace-nowrap",
                     isActive ? "text-amber-500" : "text-zinc-500"
                   )}>
                     {step.title}
@@ -143,7 +189,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -153,6 +199,42 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
               className="space-y-8"
             >
               {currentStep === 1 && (
+                <div className="space-y-6">
+                  <h3 className="text-xl font-bold text-white">Select a Travel Package</h3>
+                  {isLoadingPackages ? (
+                    <div className="flex items-center justify-center py-20">
+                      <Loader2 className="animate-spin text-amber-500" size={40} />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {packages.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            setSelectedPkg(p);
+                            handleNext();
+                          }}
+                          className={cn(
+                            "group relative bg-zinc-800/50 border rounded-3xl overflow-hidden transition-all text-left",
+                            selectedPkg?.id === p.id ? "border-amber-500 ring-2 ring-amber-500/20" : "border-white/5 hover:border-white/20"
+                          )}
+                        >
+                          <div className="aspect-video overflow-hidden">
+                            <img src={p.imageUrl || 'https://picsum.photos/seed/travel/800/600'} alt={p.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                          </div>
+                          <div className="p-6">
+                            <h4 className="font-bold text-white mb-1">{p.title}</h4>
+                            <p className="text-xs text-zinc-500 mb-4">{p.destination}</p>
+                            <p className="text-lg font-black text-amber-500">{formatCurrency(p.price)}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {currentStep === 2 && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
@@ -170,7 +252,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
                         type="number" 
                         min="1"
                         value={formData.travelers}
-                        onChange={(e) => setFormData({...formData, travelers: parseInt(e.target.value)})}
+                        onChange={(e) => updateTravelerCount(parseInt(e.target.value))}
                         className="w-full bg-zinc-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none transition-colors"
                       />
                     </div>
@@ -188,31 +270,74 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
                 </div>
               )}
 
-              {currentStep === 2 && (
+              {currentStep === 3 && (
                 <div className="space-y-6">
-                  <p className="text-zinc-400 text-sm">Please provide details for all travelers. For now, we'll use your profile as the primary traveler.</p>
-                  <div className="bg-zinc-800/50 border border-white/5 rounded-2xl p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-                        <Users size={24} />
+                  <h3 className="text-xl font-bold text-white">Traveler Details</h3>
+                  <div className="space-y-4">
+                    {formData.travelerDetails.map((traveler, index) => (
+                      <div key={index} className="bg-zinc-800/50 border border-white/5 rounded-2xl p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-amber-500 flex items-center gap-2">
+                            <Users size={18} />
+                            Traveler {index + 1} {index === 0 && "(Primary)"}
+                          </h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <input 
+                            placeholder="Full Name"
+                            value={traveler.name}
+                            onChange={(e) => {
+                              const newDetails = [...formData.travelerDetails];
+                              newDetails[index].name = e.target.value;
+                              setFormData({...formData, travelerDetails: newDetails});
+                            }}
+                            className="bg-zinc-900 border border-white/5 rounded-xl px-4 py-2 text-sm text-white focus:border-amber-500 outline-none"
+                          />
+                          <input 
+                            placeholder="Email Address"
+                            value={traveler.email}
+                            onChange={(e) => {
+                              const newDetails = [...formData.travelerDetails];
+                              newDetails[index].email = e.target.value;
+                              setFormData({...formData, travelerDetails: newDetails});
+                            }}
+                            className="bg-zinc-900 border border-white/5 rounded-xl px-4 py-2 text-sm text-white focus:border-amber-500 outline-none"
+                          />
+                          <input 
+                            placeholder="Phone Number"
+                            value={traveler.phone}
+                            onChange={(e) => {
+                              const newDetails = [...formData.travelerDetails];
+                              newDetails[index].phone = e.target.value;
+                              setFormData({...formData, travelerDetails: newDetails});
+                            }}
+                            className="bg-zinc-900 border border-white/5 rounded-xl px-4 py-2 text-sm text-white focus:border-amber-500 outline-none"
+                          />
+                          <input 
+                            placeholder="Passport Number"
+                            value={traveler.passport}
+                            onChange={(e) => {
+                              const newDetails = [...formData.travelerDetails];
+                              newDetails[index].passport = e.target.value;
+                              setFormData({...formData, travelerDetails: newDetails});
+                            }}
+                            className="bg-zinc-900 border border-white/5 rounded-xl px-4 py-2 text-sm text-white focus:border-amber-500 outline-none"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-white">{user.displayName}</h4>
-                        <p className="text-xs text-zinc-500">Primary Traveler (You)</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {currentStep === 3 && (
+              {currentStep === 4 && (
                 <div className="space-y-6">
                   <div className="p-12 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center text-center hover:border-amber-500/50 transition-colors cursor-pointer group">
                     <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-500 mb-4 group-hover:text-amber-500 transition-colors">
                       <Upload size={32} />
                     </div>
                     <h4 className="text-lg font-bold text-white mb-2">Upload Documents</h4>
-                    <p className="text-sm text-zinc-500 max-w-xs">Upload your passport, ID, or any other travel documents required for this trip.</p>
+                    <p className="text-sm text-zinc-500 max-w-xs">Upload passport copies, IDs, or any other travel documents required for this trip.</p>
                   </div>
                   <div className="flex items-center gap-2 text-amber-500/60 text-xs italic">
                     <ShieldCheck size={14} />
@@ -221,7 +346,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
                 </div>
               )}
 
-              {currentStep === 4 && (
+              {currentStep === 5 && (
                 <div className="space-y-6">
                   <div className="bg-zinc-800/50 border border-white/5 rounded-3xl p-8">
                     <div className="flex items-start gap-4">
@@ -249,16 +374,16 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
                 </div>
               )}
 
-              {currentStep === 5 && (
+              {currentStep === 6 && selectedPkg && (
                 <div className="space-y-8">
                   <div className="bg-zinc-800/50 border border-white/5 rounded-3xl p-8 space-y-6">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="text-2xl font-serif text-white">{pkg.title}</h4>
-                        <p className="text-zinc-500">{pkg.destination} • {pkg.duration}</p>
+                        <h4 className="text-2xl font-serif text-white">{selectedPkg.title}</h4>
+                        <p className="text-zinc-500">{selectedPkg.destination} • {selectedPkg.duration}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-3xl font-black text-amber-500">{formatCurrency(pkg.price * formData.travelers)}</p>
+                        <p className="text-3xl font-black text-amber-500">{formatCurrency(selectedPkg.price * formData.travelers)}</p>
                         <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Total for {formData.travelers} traveler(s)</p>
                       </div>
                     </div>
@@ -271,6 +396,15 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
                       <div>
                         <p className="text-xs font-bold text-zinc-500 uppercase mb-1">Visa Assistance</p>
                         <p className="text-white">{formData.visaRequired ? 'Yes' : 'No'}</p>
+                      </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-white/5">
+                      <p className="text-xs font-bold text-zinc-500 uppercase mb-2">Travelers</p>
+                      <div className="space-y-1">
+                        {formData.travelerDetails.map((t, i) => (
+                          <p key={i} className="text-sm text-white">{t.name || 'Unnamed Traveler'} ({t.email || 'No Email'})</p>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -292,14 +426,14 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
         <div className="p-8 border-t border-white/5 bg-black/20 flex items-center justify-between">
           <button 
             onClick={() => handleSubmit(true)}
-            disabled={isSubmitting}
-            className="text-zinc-500 hover:text-white transition-colors text-sm font-bold uppercase tracking-widest"
+            disabled={isSubmitting || !selectedPkg}
+            className="text-zinc-500 hover:text-white transition-colors text-sm font-bold uppercase tracking-widest disabled:opacity-30"
           >
             Save as Draft
           </button>
           
           <div className="flex items-center gap-4">
-            {currentStep > 1 && (
+            {currentStep > (pkg ? 2 : 1) && (
               <button 
                 onClick={handleBack}
                 className="px-6 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-all flex items-center gap-2"
@@ -311,14 +445,15 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
             {currentStep < steps.length ? (
               <button 
                 onClick={handleNext}
-                className="px-8 py-3 bg-amber-500 text-black rounded-xl font-bold hover:bg-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
+                disabled={currentStep === 1 && !selectedPkg}
+                className="px-8 py-3 bg-amber-500 text-black rounded-xl font-bold hover:bg-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
               >
                 Next Step <ChevronRight size={20} />
               </button>
             ) : (
               <button 
                 onClick={() => handleSubmit(false)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !selectedPkg}
                 className="px-8 py-3 bg-amber-500 text-black rounded-xl font-bold hover:bg-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
               >
                 {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}

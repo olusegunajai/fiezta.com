@@ -48,71 +48,84 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Mock data for demo
-    const mockAccounts: SocialAccount[] = [
-      {
-        id: '1',
-        agencyId,
-        platform: 'facebook',
-        accountName: 'Fiezta Luxury Travel',
-        accountId: 'fb_123',
-        accessToken: 'encrypted_token',
-        status: 'active',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: '2',
-        agencyId,
-        platform: 'instagram',
-        accountName: '@fiezta_travel',
-        accountId: 'ig_456',
-        accessToken: 'encrypted_token',
-        status: 'active',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: '3',
-        agencyId,
-        platform: 'x',
-        accountName: '@FieztaTravel',
-        accountId: 'x_789',
-        accessToken: 'encrypted_token',
-        status: 'active',
-        createdAt: new Date().toISOString()
-      }
-    ];
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/social/scheduled');
+        const scheduledPosts = await response.json();
 
-    const mockPosts: SocialPost[] = [
-      {
-        id: 'p1',
-        agencyId,
-        accountId: '1',
-        content: 'Discover the hidden gems of Santorini this summer! 🇬🇷 #Travel #Santorini #Luxury',
-        platforms: ['facebook', 'instagram'],
-        type: 'post',
-        scheduledAt: new Date(Date.now() + 86400000).toISOString(),
-        status: 'scheduled',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'p2',
-        agencyId,
-        accountId: '2',
-        content: 'Our latest vlog from Bali is live! Check out the link in bio. 🌴',
-        platforms: ['youtube', 'instagram'],
-        type: 'reel',
-        scheduledAt: new Date(Date.now() - 3600000).toISOString(),
-        status: 'published',
-        analytics: { likes: 1240, shares: 85, comments: 42, reach: 15000, impressions: 22000 },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ];
+        const mockAccounts: SocialAccount[] = [
+          {
+            id: '1',
+            agencyId,
+            platform: 'facebook',
+            accountName: 'Fiezta Luxury Travel',
+            accountId: 'fb_123',
+            accessToken: 'encrypted_token',
+            status: 'active',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: '2',
+            agencyId,
+            platform: 'instagram',
+            accountName: '@fiezta_travel',
+            accountId: 'ig_456',
+            accessToken: 'encrypted_token',
+            status: 'active',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: '3',
+            agencyId,
+            platform: 'x',
+            accountName: '@FieztaTravel',
+            accountId: 'x_789',
+            accessToken: 'encrypted_token',
+            status: 'active',
+            createdAt: new Date().toISOString()
+          }
+        ];
 
-    setAccounts(mockAccounts);
-    setPosts(mockPosts);
-    setIsLoading(false);
+        const mockPosts: SocialPost[] = [
+          {
+            id: 'p1',
+            agencyId,
+            accountId: '1',
+            content: 'Discover the hidden gems of Santorini this summer! 🇬🇷 #Travel #Santorini #Luxury',
+            platforms: ['facebook', 'instagram'],
+            type: 'post',
+            scheduledAt: new Date(Date.now() + 86400000).toISOString(),
+            status: 'scheduled',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          {
+            id: 'p2',
+            agencyId,
+            accountId: '2',
+            content: 'Our latest vlog from Bali is live! Check out the link in bio. 🌴',
+            platforms: ['youtube', 'instagram'],
+            type: 'reel',
+            scheduledAt: new Date(Date.now() - 3600000).toISOString(),
+            status: 'published',
+            analytics: { likes: 1240, shares: 85, comments: 42, reach: 15000, impressions: 22000 },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          ...scheduledPosts
+        ];
+
+        setAccounts(mockAccounts);
+        setPosts(mockPosts);
+      } catch (error) {
+        console.error('Failed to fetch social data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, [agencyId]);
 
   const handleConnectAccount = async (platform: SocialPlatform) => {
@@ -163,7 +176,7 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
       </div>
 
       {/* Sub-Navigation */}
-      <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+      <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl w-full sm:w-fit overflow-x-auto custom-scrollbar shrink-0">
         {[
           { id: 'overview', label: 'Overview', icon: BarChart3 },
           { id: 'calendar', label: 'Calendar', icon: Calendar },
@@ -174,13 +187,13 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
             key={tab.id}
             onClick={() => setActiveSubTab(tab.id as any)}
             className={cn(
-              "flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all",
+              "flex items-center gap-2 px-4 sm:px-6 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
               activeSubTab === tab.id 
                 ? "bg-white text-slate-900 shadow-sm" 
                 : "text-slate-500 hover:text-slate-700"
             )}
           >
-            <tab.icon size={16} />
+            <tab.icon size={14} className="sm:w-4 sm:h-4" />
             {tab.label}
           </button>
         ))}

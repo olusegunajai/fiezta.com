@@ -189,6 +189,89 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["agencyId", "title", "type", "trigger"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Offered service like musical entertainment, travel, rentals.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["entertainment", "travel", "rental", "tour", "other"] },
+        "price": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      }
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer testimonials.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "rating": { "type": "integer" },
+        "content": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "date": { "type": "string", "format": "date" }
+      }
+    },
+    "FAQ": {
+      "title": "FAQ",
+      "description": "Frequently asked questions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "question": { "type": "string" },
+        "answer": { "type": "string" },
+        "order": { "type": "integer" }
+      }
+    },
+    "Page": {
+      "title": "Page",
+      "description": "Dynamic CMS page.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "content": { "type": "string" },
+        "blocks": { "type": "array", "items": { "type": "object" } },
+        "status": { "type": "string", "enum": ["publish", "draft"] }
+      }
+    },
+    "Menu": {
+      "title": "Menu",
+      "description": "Navigational menu.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "title": { "type": "string" },
+        "location": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "isActive": { "type": "boolean" }
+      }
+    },
+    "Invention": {
+      "title": "Invention",
+      "description": "Patented project seeking licensing.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "content": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "draft"] }
+      }
     }
   },
   "firestore": {
@@ -202,6 +285,12 @@
     "/roles/{roleId}": { "schema": "Role", "description": "Custom user roles." },
     "/site_settings/{id}": { "schema": "SiteSettings", "description": "Site-wide settings." },
     "/custom_forms/{id}": { "schema": "CustomForm", "description": "Custom forms." },
-    "/popup_campaigns/{id}": { "schema": "PopupCampaign", "description": "Popup campaigns." }
+    "/popup_campaigns/{id}": { "schema": "PopupCampaign", "description": "Popup campaigns." },
+    "/services/{id}": { "schema": "Service", "description": "Services." },
+    "/reviews/{id}": { "schema": "Review", "description": "Reviews." },
+    "/faqs/{id}": { "schema": "FAQ", "description": "FAQs." },
+    "/pages/{id}": { "schema": "Page", "description": "CMS Pages." },
+    "/menus/{id}": { "schema": "Menu", "description": "Menus." },
+    "/inventions/{id}": { "schema": "Invention", "description": "Inventions." }
   }
 }
