@@ -40,6 +40,7 @@ import { db, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { logActivity } from '../lib/security';
 
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -63,6 +64,7 @@ interface GenericCRUDProps {
   fixedFilters?: Record<string, any>;
   allowFiltering?: boolean;
   allowSorting?: boolean;
+  profile?: any;
 }
 
 export const GenericCRUD: React.FC<GenericCRUDProps> = ({ 
@@ -73,17 +75,24 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
   displayFields,
   fixedFilters,
   allowFiltering = false,
-  allowSorting = false
+  allowSorting = false,
+  profile
 }) => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [viewingItem, setViewingItem] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<Record<string, any>>({});
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [formData, setFormData] = useState<any>({});
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     let q = query(
@@ -142,8 +151,14 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
   const handleBulkDelete = async () => {
     if (window.confirm(`Are you sure you want to delete ${selectedIds.size} selected records?`)) {
       try {
-        const deletePromises = Array.from(selectedIds).map(id => deleteDoc(doc(db, collectionName, id)));
+        const ids = Array.from(selectedIds);
+        const deletePromises = ids.map(id => deleteDoc(doc(db, collectionName, id)));
         await Promise.all(deletePromises);
+        
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'BULK_DELETE', entityName, 'multiple', `Deleted ${ids.length} items from ${collectionName}`);
+        }
+        
         setSelectedIds(new Set());
       } catch (error) {
         console.error(`Error bulk deleting ${entityName}:`, error);
@@ -178,6 +193,9 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
     if (window.confirm(`Are you sure you want to delete this ${entityName}?`)) {
       try {
         await deleteDoc(doc(db, collectionName, id));
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'DELETE', entityName, id, `Deleted ${entityName}`);
+        }
       } catch (error) {
         console.error(`Error deleting ${entityName}:`, error);
       }
@@ -189,6 +207,17 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
       String(val).toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeFilter, sortBy, sortOrder]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -332,12 +361,12 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={displayFields.length + 1} className="px-6 py-12 text-center">
+                  <td colSpan={displayFields.length + 2} className="px-6 py-12 text-center">
                     <Loader2 className="mx-auto animate-spin text-indigo-600 mb-2" size={32} />
                     <p className="text-slate-400 font-bold">Loading data...</p>
                   </td>
                 </tr>
-              ) : filteredData.length > 0 ? filteredData.map((item) => (
+              ) : paginatedData.length > 0 ? paginatedData.map((item) => (
                 <tr key={item.id} className={cn(
                   "hover:bg-slate-50/50 transition-colors group",
                   selectedIds.has(item.id) && "bg-indigo-50/30"
@@ -364,6 +393,16 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                   ))}
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
+                       <button 
+                        onClick={() => {
+                          setViewingItem(item);
+                          setIsViewModalOpen(true);
+                        }}
+                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                        title="View"
+                      >
+                        <Search size={18} />
+                      </button>
                       <button 
                         onClick={() => {
                           setEditingItem(item);
@@ -371,12 +410,14 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                           setIsModalOpen(true);
                         }}
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                        title="Edit"
                       >
                         <Edit2 size={18} />
                       </button>
                       <button 
                         onClick={() => handleDelete(item.id)}
                         className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                        title="Delete"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -385,7 +426,7 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={displayFields.length + 1} className="px-6 py-20 text-center">
+                  <td colSpan={displayFields.length + 2} className="px-6 py-20 text-center">
                     <div className="w-20 h-20 bg-slate-50 rounded-[32px] flex items-center justify-center mx-auto mb-4">
                       <Database size={32} className="text-slate-300" />
                     </div>
@@ -396,7 +437,178 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {filteredData.length > 0 && (
+          <div className="p-4 sm:p-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/30">
+            <div className="flex items-center gap-4">
+              <span className="text-xs sm:text-sm text-slate-500 font-medium">
+                Showing <span className="text-slate-900 font-bold">{Math.min(filteredData.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredData.length, currentPage * itemsPerPage)}</span> of <span className="text-slate-900 font-bold">{filteredData.length}</span>
+              </span>
+              <select 
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="text-xs font-bold bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none"
+              >
+                <option value={5}>5 per page</option>
+                <option value={10}>10 per page</option>
+                <option value={25}>25 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-30 disabled:hover:bg-transparent transition-all rounded-xl border border-slate-200 bg-white"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={cn(
+                        "w-8 h-8 sm:w-10 sm:h-10 rounded-xl text-xs sm:text-sm font-bold transition-all",
+                        currentPage === pageNum 
+                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" 
+                          : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                      )}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-30 disabled:hover:bg-transparent transition-all rounded-xl border border-slate-200 bg-white"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* View Modal */}
+      <AnimatePresence>
+        {isViewModalOpen && viewingItem && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white sm:rounded-[40px] w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-3xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 sm:p-8 border-b border-slate-100 flex items-center justify-between bg-emerald-50/30 shrink-0">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-slate-900">
+                    View {entityName}
+                  </h2>
+                  <p className="text-slate-500 text-xs sm:text-sm">Detailed information for this record.</p>
+                </div>
+                <button 
+                  onClick={() => setIsViewModalOpen(false)}
+                  className="p-2 sm:p-3 hover:bg-slate-200 rounded-xl sm:rounded-2xl transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 p-6 sm:p-8 space-y-6 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {fields.map(field => (
+                    <div key={field.name} className={cn("space-y-1.5", (field.type === 'textarea' || field.type === 'json' || field.type === 'page-builder' || field.type === 'html') && "md:col-span-2")}>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{field.label}</span>
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        {field.type === 'image' ? (
+                          viewingItem[field.name] ? (
+                            <img src={viewingItem[field.name]} alt={field.label} className="w-full max-h-64 object-contain rounded-xl" />
+                          ) : (
+                            <span className="text-sm text-slate-400 italic">No image</span>
+                          )
+                        ) : field.type === 'html' ? (
+                          <div className="prose prose-sm max-w-none prose-slate" dangerouslySetInnerHTML={{ __html: viewingItem[field.name] || '' }} />
+                        ) : field.type === 'json' ? (
+                          <pre className="text-xs font-mono text-slate-600 whitespace-pre-wrap">{JSON.stringify(viewingItem[field.name], null, 2)}</pre>
+                        ) : field.type === 'boolean' ? (
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-xs font-bold",
+                            viewingItem[field.name] ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                          )}>
+                            {viewingItem[field.name] ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        ) : (
+                          <span className="text-sm font-bold text-slate-700 block break-words">
+                            {String(viewingItem[field.name] || 'N/A')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Created At</span>
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <span className="text-sm font-medium text-slate-600 italic">
+                        {viewingItem.createdAt ? new Date(viewingItem.createdAt).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Last Updated</span>
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <span className="text-sm font-medium text-slate-600 italic">
+                        {viewingItem.updatedAt ? new Date(viewingItem.updatedAt).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4">
+                <button 
+                  onClick={() => setIsViewModalOpen(false)}
+                  className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold hover:bg-slate-100 transition-all"
+                >
+                  Close
+                </button>
+                <button 
+                  onClick={() => {
+                    setEditingItem(viewingItem);
+                    setFormData(viewingItem);
+                    setIsViewModalOpen(false);
+                    setIsModalOpen(true);
+                  }}
+                  className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all"
+                >
+                  Edit Record
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal */}
       <AnimatePresence>

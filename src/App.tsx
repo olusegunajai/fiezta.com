@@ -91,6 +91,8 @@ import {
   Shield,
   PieChart,
   Home,
+  Bell,
+  CheckCheck,
   MapPin,
   Clock3,
   DollarSign,
@@ -117,6 +119,8 @@ import {
   Linkedin,
   Github,
   Plane,
+  Ship,
+  Star,
   Heart,
   User as UserIcon,
   Map as MapIcon,
@@ -154,6 +158,35 @@ import { AIItineraryBuilder } from './components/AIItineraryBuilder';
 import { InteractiveMap } from './components/InteractiveMap';
 
 // --- Components ---
+
+const bookingFields = [
+  { name: 'packageName', label: 'Package', type: 'text', required: true },
+  { name: 'clientName', label: 'Client', type: 'text', required: true },
+  { name: 'travelDate', label: 'Travel Date', type: 'date', required: true },
+  { name: 'amount', label: 'Total Amount', type: 'number', required: true },
+  { name: 'paidAmount', label: 'Paid Amount', type: 'number' },
+  { name: 'status', label: 'Status', type: 'select', options: ['pending', 'confirmed', 'cancelled', 'completed'] },
+  { name: 'paymentStatus', label: 'Payment', type: 'select', options: ['unpaid', 'partial', 'paid'] },
+];
+
+const accommodationFields = [
+  { name: 'name', label: 'Name', type: 'text', required: true },
+  { name: 'type', label: 'Type', type: 'select', options: ['Hotel', 'Resort', 'Villa', 'Apartment', 'Hostel'] },
+  { name: 'location', label: 'Location', type: 'text', required: true },
+  { name: 'pricePerNight', label: 'Price/Night', type: 'number', required: true },
+  { name: 'stars', label: 'Stars', type: 'number' },
+  { name: 'description', label: 'Description', type: 'textarea' },
+  { name: 'imageUrl', label: 'Image URL', type: 'text' },
+];
+
+const transportFields = [
+  { name: 'provider', label: 'Provider', type: 'text', required: true },
+  { name: 'type', label: 'Type', type: 'select', options: ['flight', 'bus', 'train', 'car', 'ship'] },
+  { name: 'model', label: 'Model/Vehicle Name', type: 'text' },
+  { name: 'capacity', label: 'Capacity', type: 'number' },
+  { name: 'price', label: 'Base Price', type: 'number', required: true },
+  { name: 'imageUrl', label: 'Image URL', type: 'text' },
+];
 
 const taskFields = [
   { name: 'title', label: 'Title', type: 'text', required: true },
@@ -409,12 +442,28 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [currentPublicPage, setCurrentPublicPage] = useState('home');
+  const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [agencyId, setAgencyId] = useState<string | null>(null);
   const [activeTheme, setActiveTheme] = useState<Theme | null>(null);
   const [siteSettings, setSiteSettings] = useState<any>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [activeFaq, setActiveFaq] = useState<string | null>(null);
-  const [currentPublicPage, setCurrentPublicPage] = useState<string>('home');
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [isManagementMode, setIsManagementMode] = useState(true);
+
+  const addNotification = (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    const newNotify = {
+      id: Date.now(),
+      title,
+      message,
+      type,
+      time: new Date(),
+      read: false
+    };
+    setNotifications(prev => [newNotify, ...prev]);
+    // Also trigger a toast or alert if needed
+  };
   const [activePageBlocks, setActivePageBlocks] = useState<any[]>([]);
 
   // Fetch Site Settings
@@ -526,6 +575,28 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<{ id: string, role: 'user' | 'ai', text: string }[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   
+  const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
+  const [selectedSubscriberIds, setSelectedSubscriberIds] = useState<string[]>([]);
+  const [selectedAccommodationIds, setSelectedAccommodationIds] = useState<string[]>([]);
+  const [selectedTransportIds, setSelectedTransportIds] = useState<string[]>([]);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
+  const [selectedWpPostIds, setSelectedWpPostIds] = useState<string[]>([]);
+
+  // Pagination States
+  const [bookingsPage, setBookingsPage] = useState(1);
+  const [accommodationsPage, setAccommodationsPage] = useState(1);
+  const [transportPage, setTransportPage] = useState(1);
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const [documentsPage, setDocumentsPage] = useState(1);
+  const [wpPostsPage, setWpPostsPage] = useState(1);
+  const [itemsPerPage] = useState(6);
+
+  // Detail View States
+  const [viewingAccommodation, setViewingAccommodation] = useState<Accommodation | null>(null);
+  const [viewingTransport, setViewingTransport] = useState<Transport | null>(null);
+  const [viewingDocument, setViewingDocument] = useState<TravelDocument | null>(null);
+  const [viewingWpPost, setViewingWpPost] = useState<WPPost | null>(null);
+
   // Booking Modal State
   const [selectedPackage, setSelectedPackage] = useState<TravelPackage | null>(null);
   const [selectedCrudEntity, setSelectedCrudEntity] = useState<any>(null);
@@ -744,11 +815,365 @@ export default function App() {
               Close
             </button>
             {profile?.role === 'admin' && (
-              <button className="px-6 py-3 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl font-bold hover:bg-rose-100 transition-all flex items-center gap-2">
+              <button 
+                onClick={async () => {
+                  if (selectedBookingDetail) {
+                    await handleFirestoreDelete('bookings', selectedBookingDetail.id, 'Booking');
+                    setIsBookingDetailModalOpen(false);
+                  }
+                }}
+                className="px-6 py-3 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl font-bold hover:bg-rose-100 transition-all flex items-center gap-2"
+              >
                 <Trash2 size={18} />
                 Delete Booking
               </button>
             )}
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
+  const AccommodationDetailModal = () => {
+    if (!viewingAccommodation) return null;
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden"
+        >
+          <div className="relative h-64">
+            <img 
+              src={viewingAccommodation.imageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945'} 
+              className="w-full h-full object-cover"
+              alt={viewingAccommodation.name}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+            <button 
+              onClick={() => setViewingAccommodation(null)}
+              className="absolute top-6 right-6 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-all"
+            >
+              <X size={20} />
+            </button>
+            <div className="absolute bottom-6 left-8">
+              <h2 className="text-3xl font-black text-white tracking-tighter">{viewingAccommodation.name}</h2>
+              <div className="flex items-center gap-2 mt-1 text-slate-200">
+                <MapPin size={14} />
+                <span className="text-sm font-bold">{viewingAccommodation.location}</span>
+                <div className="flex items-center gap-0.5 ml-2">
+                  <Star size={14} className="fill-amber-400 text-amber-400" />
+                  <span className="text-sm font-bold">{viewingAccommodation.rating}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-8">
+            <div className="grid grid-cols-2 gap-8 mb-8">
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pricing</p>
+                <p className="text-xl font-black text-indigo-600">{formatCurrency(viewingAccommodation.pricePerNight)}<span className="text-xs font-bold text-slate-400"> / night</span></p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type</p>
+                <p className="text-xl font-black text-slate-900 capitalize">{viewingAccommodation.type}</p>
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">Amenities</h4>
+                <div className="flex flex-wrap gap-2">
+                  {viewingAccommodation.amenities?.map((amenity: string) => (
+                    <span key={amenity} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">Description</h4>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  {viewingAccommodation.description || 'No detailed description provided for this accommodation.'}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <button 
+              onClick={() => setViewingAccommodation(null)}
+              className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+            >
+              Close Details
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
+  const TransportDetailModal = () => {
+    if (!viewingTransport) return null;
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden"
+        >
+          <div className="relative h-64 bg-slate-900 flex items-center justify-center">
+             <div className="absolute inset-0 opacity-20 pointer-events-none">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/20 via-transparent to-transparent"></div>
+            </div>
+            <div className="w-32 h-32 bg-white/10 rounded-[32px] flex items-center justify-center text-white backdrop-blur-md">
+              {viewingTransport.type === 'flight' ? <Plane size={64} /> : 
+               viewingTransport.type === 'car' ? <Car size={64} /> : 
+               <Ship size={64} />}
+            </div>
+            <button 
+              onClick={() => setViewingTransport(null)}
+              className="absolute top-6 right-6 p-2 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 transition-all"
+            >
+              <X size={20} />
+            </button>
+            <div className="absolute bottom-6 left-8">
+              <h2 className="text-3xl font-black text-white tracking-tighter">{viewingTransport.provider}</h2>
+              <div className="flex items-center gap-3 mt-1 text-slate-400">
+                <span className="text-sm font-bold uppercase tracking-widest">{viewingTransport.type}</span>
+                <div className="w-1 h-1 rounded-full bg-slate-600" />
+                <span className="text-sm font-bold">{viewingTransport.vehicleName}</span>
+              </div>
+            </div>
+          </div>
+          <div className="p-8">
+             <div className="grid grid-cols-2 gap-8 mb-8">
+              <div className="space-y-1 text-center p-4 bg-slate-50 rounded-2xl">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Base Cost</p>
+                <p className="text-xl font-black text-indigo-600">{formatCurrency(viewingTransport.price)}</p>
+              </div>
+              <div className="space-y-1 text-center p-4 bg-slate-50 rounded-2xl">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Capacity</p>
+                <p className="text-xl font-black text-slate-900">{viewingTransport.capacity || '4'} Persons</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">Included Features</h4>
+                <div className="flex flex-wrap gap-2">
+                  {['WiFi', 'Air Conditioning', 'Refreshments', 'Insurance'].map((tag) => (
+                    <span key={tag} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+               <div>
+                <h4 className="text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">About this Provider</h4>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  Premium {viewingTransport.type} services provided by {viewingTransport.provider}. Our fleet is maintained to the highest safety and comfort standards, ensuring a seamless luxury travel experience.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
+             <button 
+              onClick={() => setViewingTransport(null)}
+              className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+            >
+              Close Details
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
+  const DocumentDetailModal = () => {
+    if (!viewingDocument) return null;
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-[40px] w-full max-w-xl shadow-2xl overflow-hidden"
+        >
+          <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex items-center gap-6">
+            <div className="w-20 h-20 bg-white rounded-[24px] shadow-sm flex items-center justify-center text-indigo-600">
+               {viewingDocument.type === 'passport' ? <ShieldCheck size={40} /> : 
+                viewingDocument.type === 'visa' ? <Globe size={40} /> : 
+                <FileText size={40} />}
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tighter">{viewingDocument.title}</h2>
+              <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">{viewingDocument.type}</p>
+            </div>
+            <button 
+              onClick={() => setViewingDocument(null)}
+              className="ml-auto p-2 hover:bg-slate-200 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="p-10 space-y-8">
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client Name</p>
+                <p className="text-base font-bold text-slate-900">{viewingDocument.clientName}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Upload Date</p>
+                <p className="text-base font-bold text-slate-900">{new Date(viewingDocument.createdAt).toLocaleDateString()}</p>
+              </div>
+              {viewingDocument.expiryDate && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</p>
+                  <p className={cn(
+                    "text-base font-bold",
+                    new Date(viewingDocument.expiryDate) < new Date() ? "text-rose-600" : "text-emerald-600"
+                  )}>
+                    {new Date(viewingDocument.expiryDate).toLocaleDateString()}
+                    {new Date(viewingDocument.expiryDate) < new Date() && " (EXPIRED)"}
+                  </p>
+                </div>
+              )}
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">File Size</p>
+                <p className="text-base font-bold text-slate-900">{viewingDocument.fileSize}</p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100">
+               <h4 className="text-xs font-bold text-slate-900 mb-2 uppercase tracking-widest">System Notes</h4>
+               <p className="text-sm text-slate-500 leading-relaxed italic">
+                 "This document is stored in our secure encrypted vault. High-resolution scan is available for download."
+               </p>
+            </div>
+          </div>
+
+          <div className="p-10 bg-slate-50 border-t border-slate-100 flex items-center gap-4">
+             <a 
+              href={viewingDocument.fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all"
+            >
+              <Download size={20} />
+              Download High-Res
+            </a>
+            <button 
+              onClick={() => setViewingDocument(null)}
+              className="px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+            >
+              Close
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
+  const WpPostDetailModal = () => {
+    if (!viewingWpPost) return null;
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-[40px] w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        >
+          <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                <FileText size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tighter">WP Content Inspector</h2>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Post ID: {viewingWpPost.id}</span>
+                  <div className="w-1 h-1 rounded-full bg-slate-300" />
+                  <span className="text-[10px] font-bold text-emerald-600 tracking-widest uppercase">Synced from WordPress</span>
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setViewingWpPost(null)}
+              className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+            <header className="space-y-4">
+               <h3 className="text-4xl font-black text-slate-900 leading-[1.1] tracking-tighter">
+                {viewingWpPost.title}
+              </h3>
+              <div className="flex items-center gap-6 text-sm">
+                <div className="flex items-center gap-2 text-slate-500 font-bold">
+                  <Calendar size={14} />
+                  {new Date(viewingWpPost.date).toLocaleDateString(undefined, { dateStyle: 'long' })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-slate-200">
+                    {viewingWpPost.status}
+                  </span>
+                </div>
+              </div>
+            </header>
+
+            <div className="p-8 bg-slate-50 rounded-[32px] border border-slate-100">
+               <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Excerpt Preview</h4>
+               <p className="text-slate-600 leading-relaxed italic">
+                 {viewingWpPost.excerpt}
+               </p>
+            </div>
+
+            <div className="space-y-4 text-slate-600 leading-relaxed">
+               <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Metadata</h4>
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="p-4 bg-white border border-slate-100 rounded-2xl">
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Author</p>
+                   <p className="text-sm font-bold text-slate-900">{viewingWpPost.authorName || 'WP Admin'}</p>
+                 </div>
+                 <div className="p-4 bg-white border border-slate-100 rounded-2xl">
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Slub</p>
+                   <p className="text-sm font-bold text-slate-900 font-mono">/{viewingWpPost.slug || '...'}</p>
+                 </div>
+               </div>
+            </div>
+          </div>
+
+          <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+             <div className="flex items-center gap-2">
+               <button 
+                onClick={() => handleFirestoreDelete('wp_posts', viewingWpPost.id, 'Blog Post').then(() => setViewingWpPost(null))}
+                className="px-6 py-3 bg-white border border-rose-100 text-rose-600 rounded-2xl font-bold hover:bg-rose-50 transition-all flex items-center gap-2"
+              >
+                <Trash2 size={18} />
+                Delete Post
+              </button>
+             </div>
+             <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setViewingWpPost(null)}
+                  className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+                >
+                  Close
+                </button>
+                <a 
+                  href={viewingWpPost.link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all flex items-center gap-2"
+                >
+                  View on Website
+                  <ExternalLink size={18} />
+                </a>
+             </div>
           </div>
         </motion.div>
       </div>
@@ -1002,13 +1427,38 @@ export default function App() {
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      addNotification('2FA Verification', 'A security code has been sent to your email/phone.', 'info');
+      console.log(`[EMAIL SIMULANT] Sending 2FA verification code to ${result.user.email}`);
+      
+      // Simulating a brief delay for 2FA verification
+      setTimeout(() => {
+        addNotification('Login Success', `Welcome back, ${result.user.displayName}!`, 'success');
+        console.log(`[EMAIL SIMULANT] Sending login confirmation to ${result.user.email}`);
+      }, 1500);
     } catch (error) {
       console.error("Login failed", error);
+      addNotification('Login Failed', 'Unable to authenticate with Google.', 'error');
     }
   };
 
-  const handleLogout = () => signOut(auth);
+  const handleLogout = () => {
+    signOut(auth);
+    addNotification('Logged Out', 'Successfully signed out.', 'info');
+  };
+
+  const handleResetPassword = () => {
+    if (user?.email) {
+      console.log(`[EMAIL SIMULANT] Sending password reset link to ${user.email}`);
+      addNotification('Reset Link Sent', `A password reset link has been sent to ${user.email}`, 'success');
+    } else {
+      const email = prompt("Enter your email address:");
+      if (email) {
+        console.log(`[EMAIL SIMULANT] Sending password reset link to ${email}`);
+        addNotification('Reset Link Sent', `A password reset link has been sent to ${email}`, 'success');
+      }
+    }
+  };
 
   const updateProfile = async (data: Partial<UserProfile>) => {
     if (!user) return;
@@ -1062,6 +1512,42 @@ export default function App() {
     }
   };
 
+  const handleFirestoreDelete = async (collectionName: string, id: string, entityName: string) => {
+    if (window.confirm(`Are you sure you want to delete this ${entityName}?`)) {
+      try {
+        await deleteDoc(doc(db, collectionName, id));
+        addNotification('Deleted', `${entityName} has been removed successfully.`, 'success');
+        
+        // Log activity
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'DELETE', entityName, id, `Deleted ${entityName}`);
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `${collectionName}/${id}`);
+      }
+    }
+  };
+
+  const handleBulkDelete = async (collectionName: string, ids: string[], entityName: string, clearSelection: () => void) => {
+    if (ids.length === 0) return;
+    if (window.confirm(`Are you sure you want to delete ${ids.length} ${entityName === 'Subscribers' ? 'subscribers' : entityName + 's'}?`)) {
+      try {
+        const promises = ids.map(id => deleteDoc(doc(db, collectionName, id)));
+        await Promise.all(promises);
+        
+        addNotification('Bulk Deletion', `${ids.length} items removed successfully.`, 'success');
+        clearSelection();
+
+        // Log activity
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'BULK_DELETE', entityName, 'multiple', `Deleted ${ids.length} items from ${collectionName}`);
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, collectionName);
+      }
+    }
+  };
+
   const handleBookPackage = (pkg: TravelPackage) => {
     setSelectedPackage(pkg);
     setIsBookingModalOpen(true);
@@ -1085,8 +1571,24 @@ export default function App() {
                 { label: 'Entertainment', url: '/entertainment', order: 3 },
                 { label: 'Rentals', url: '/rentals', order: 4 },
                 { label: 'Vlog', url: '/vlog', order: 5 },
-                { label: 'Inventions', url: '/inventions', order: 6 },
-                { label: 'Contact', url: '#contact', order: 7 }
+                { label: 'News', url: '#news', order: 6 },
+                { label: 'Inventions', url: '/inventions', order: 7 },
+                { label: 'Contact', url: '#contact', order: 8 }
+              ],
+              createdAt: new Date().toISOString()
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Explore',
+              location: 'footer-explore',
+              isActive: true,
+              items: [
+                { label: 'Destinations', url: '#destinations', order: 1 },
+                { label: 'Travel', url: '/travel', order: 2 },
+                { label: 'Entertainment', url: '/entertainment', order: 3 },
+                { label: 'Rentals', url: '/rentals', order: 4 },
+                { label: 'News', url: '#news', order: 5 },
+                { label: 'Inventions', url: '/inventions', order: 6 }
               ],
               createdAt: new Date().toISOString()
             },
@@ -1120,13 +1622,32 @@ export default function App() {
           }
         }
 
-        // Seed WP Posts
+        // Seed Blogs/News
         if (wpPosts.length === 0) {
-          const posts = [
-            { agencyId: profile.agencyId, title: 'Top 10 Destinations for 2026', excerpt: 'Discover the most breathtaking places to visit this year...', date: new Date().toISOString(), status: 'publish', link: '#' },
-            { agencyId: profile.agencyId, title: 'How to Plan Your Dream Wedding Abroad', excerpt: 'Everything you need to know about destination weddings...', date: new Date().toISOString(), status: 'publish', link: '#' }
+          const initialPosts = [
+            {
+              agencyId: profile.agencyId,
+              title: 'The Future of Wireless Energy',
+              content: '<p>A deep dive into the technology behind our new portable electronic charger project.</p>',
+              status: 'publish',
+              createdAt: new Date().toISOString()
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Spring in Washington DC: A Concierge Guide',
+              content: '<p>The cherry blossoms are just the beginning. Discover the elite experiences waiting for you in the capital.</p>',
+              status: 'publish',
+              createdAt: new Date().toISOString()
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Luxury Travel Redefined for 2026',
+              content: '<p>AI-driven itineraries and hyper-personalized service are transforming the luxury travel landscape.</p>',
+              status: 'publish',
+              createdAt: new Date().toISOString()
+            }
           ];
-          for (const post of posts) {
+          for (const post of initialPosts) {
             await addDoc(collection(db, 'wp_posts'), post);
           }
         }
@@ -1168,6 +1689,7 @@ export default function App() {
             await addDoc(collection(db, 'calendar_events'), event);
           }
         }
+
         // Seed Services
         if (services.length === 0) {
           const initialServices = [
@@ -1273,10 +1795,35 @@ export default function App() {
             await addDoc(collection(db, 'pages'), page);
           }
         }
+
+        // Seed Inventions
+        if (inventions.length === 0) {
+          const initialInventions = [
+            {
+              agencyId: profile.agencyId,
+              title: 'Wireless Energy Harvester',
+              description: 'A revolutionary portable device that captures ambient radio frequencies to trickle charge small electronics.',
+              status: 'active',
+              imageUrl: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80',
+              features: ['Portable', 'Sustainable', 'Patent Pending']
+            },
+            {
+              agencyId: profile.agencyId,
+              title: 'Sonic Sax Mute',
+              description: 'Digital silencing technology for acoustic saxophones allowing for silent practice with high-fidelity headphones.',
+              status: 'active',
+              imageUrl: 'https://images.unsplash.com/photo-1552033008-011867c4ec22?auto=format&fit=crop&q=80',
+              features: ['Noise Reduction', 'Bluetooth Connectivity', 'Studio Quality']
+            }
+          ];
+          for (const inv of initialInventions) {
+            await addDoc(collection(db, 'inventions'), inv);
+          }
+        }
       };
       seedData();
     }
-  }, [profile, wpPosts.length, customForms.length, popupCampaigns.length, calendarEvents.length, menus.length, services.length, reviews.length, faqs.length, pages.length]);
+  }, [profile, wpPosts.length, customForms.length, popupCampaigns.length, calendarEvents.length, menus.length, services.length, reviews.length, faqs.length, pages.length, inventions.length]);
 
   const onBookingSuccess = () => {
     setIsBookingModalOpen(false);
@@ -1370,7 +1917,7 @@ export default function App() {
     );
   }
 
-  if (!user) {
+  if (!user || !isManagementMode) {
     if (currentPublicPage === 'inventions') {
       return (
         <div className="min-h-screen bg-white font-sans">
@@ -1387,12 +1934,27 @@ export default function App() {
                  </div>
                </button>
                <div className="flex items-center gap-4">
+                 {user && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
+                   <button 
+                     onClick={() => setIsManagementMode(true)}
+                     className="hidden sm:flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                   >
+                     <LayoutDashboard size={16} />
+                     Admin
+                   </button>
+                 )}
                  <button onClick={() => setCurrentPublicPage('home')} className="hidden sm:block text-sm font-bold text-slate-600 hover:text-[#D4AF37] transition-colors">
                    Back to Home
                  </button>
-                 <button onClick={handleLogin} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-[#D4AF37] transition-all">
-                   Sign In
-                 </button>
+                 {!user ? (
+                   <button onClick={handleLogin} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-[#D4AF37] transition-all">
+                     Sign In
+                   </button>
+                 ) : (
+                   <button onClick={handleLogout} className="px-6 py-2 bg-rose-50 text-rose-600 rounded-xl text-sm font-bold hover:bg-rose-100 transition-all">
+                     Sign Out
+                   </button>
+                 )}
                </div>
              </div>
           </nav>
@@ -1571,9 +2133,61 @@ export default function App() {
                </div>
 
                <div className="flex items-center gap-4">
-                 <button onClick={handleLogin} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-[#D4AF37] transition-all">
-                   Sign In
-                 </button>
+                 {user && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
+                   <button 
+                     onClick={() => setIsManagementMode(true)}
+                     className="hidden sm:flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg"
+                   >
+                     <LayoutDashboard size={14} />
+                     Portal
+                   </button>
+                 )}
+                 <div className="relative">
+                   <button 
+                     onClick={() => setShowNotifications(!showNotifications)}
+                     className="p-2 text-slate-400 hover:text-[#D4AF37] transition-all relative"
+                   >
+                     <Bell size={20} />
+                     {notifications.filter(n => !n.read).length > 0 && (
+                       <span className="absolute top-1 right-1 w-2 h-2 bg-[#D4AF37] rounded-full border border-white"></span>
+                     )}
+                   </button>
+                   
+                   <AnimatePresence>
+                     {showNotifications && (
+                       <motion.div
+                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                         className="absolute right-0 mt-4 w-80 bg-white border border-slate-100 rounded-3xl shadow-2xl p-4 z-50 overflow-hidden"
+                       >
+                         <h4 className="text-sm font-black text-slate-900 mb-4 px-2 uppercase tracking-widest">Notifications</h4>
+                         <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                           {notifications.length > 0 ? notifications.map(n => (
+                             <div key={n.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                               <p className="text-xs font-bold text-slate-900">{n.title}</p>
+                               <p className="text-[10px] text-slate-500 line-clamp-2">{n.message}</p>
+                             </div>
+                           )) : (
+                             <div className="py-8 text-center">
+                               <p className="text-xs text-slate-400 font-medium">No new notifications.</p>
+                             </div>
+                           )}
+                         </div>
+                       </motion.div>
+                     )}
+                   </AnimatePresence>
+                 </div>
+
+                 {!user ? (
+                   <button onClick={handleLogin} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-[#D4AF37] transition-all">
+                     Sign In
+                   </button>
+                 ) : (
+                   <button onClick={handleLogout} className="px-6 py-2 bg-rose-50 text-rose-600 rounded-xl text-sm font-bold hover:bg-rose-100 transition-all font-mono">
+                     EXIT
+                   </button>
+                 )}
                </div>
              </div>
           </nav>
@@ -1640,12 +2254,66 @@ export default function App() {
                   {item.label}
                 </button>
               ))}
-              <button 
-                onClick={handleLogin}
-                className="px-6 py-2.5 bg-slate-900 text-white rounded-full text-sm font-bold hover:bg-[#D4AF37] transition-all shadow-lg shadow-slate-200"
-              >
-                Sign In
-              </button>
+              
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="p-2 text-slate-400 hover:text-[#D4AF37] transition-all relative"
+                >
+                  <Bell size={20} />
+                  {notifications.filter(n => !n.read).length > 0 && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-[#D4AF37] rounded-full border border-white"></span>
+                  )}
+                </button>
+                <AnimatePresence>
+                  {showNotifications && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-4 w-80 bg-white border border-slate-100 rounded-3xl shadow-2xl p-4 z-50"
+                    >
+                       <h4 className="text-sm font-black text-slate-900 mb-4 px-2 uppercase tracking-widest">Notifications</h4>
+                       <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                        {notifications.length > 0 ? notifications.map(n => (
+                          <div key={n.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                            <p className="text-xs font-bold text-slate-900">{n.title}</p>
+                            <p className="text-[10px] text-slate-500 line-clamp-2">{n.message}</p>
+                          </div>
+                        )) : (
+                          <div className="py-8 text-center text-slate-400 text-xs">No notifications.</div>
+                        )}
+                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+               {user && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
+                 <button 
+                   onClick={() => setIsManagementMode(true)}
+                   className="hidden sm:flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg"
+                 >
+                   <LayoutDashboard size={14} />
+                   Admin
+                 </button>
+               )}
+
+               {!user ? (
+                 <button 
+                   onClick={handleLogin}
+                   className="px-6 py-2.5 bg-slate-900 text-white rounded-full text-sm font-bold hover:bg-[#D4AF37] transition-all shadow-lg shadow-slate-200"
+                 >
+                   Sign In
+                 </button>
+               ) : (
+                 <button 
+                   onClick={handleLogout}
+                   className="px-6 py-2.5 bg-rose-50 text-rose-600 rounded-full text-sm font-bold hover:bg-rose-100 transition-all shadow-lg shadow-slate-200"
+                 >
+                   Sign Out
+                 </button>
+               )}
             </div>
             
             <button 
@@ -1685,15 +2353,39 @@ export default function App() {
                     {item.label}
                   </button>
                 ))}
-                <button 
-                  onClick={() => {
-                    handleLogin();
-                    setShowMobileMenu(false);
-                  }}
-                  className="w-full px-6 py-3 bg-slate-900 text-white rounded-xl text-md font-bold hover:bg-[#D4AF37] transition-all shadow-lg"
-                >
-                  Sign In
-                </button>
+                {user && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
+                  <button 
+                    onClick={() => {
+                      setIsManagementMode(true);
+                      setShowMobileMenu(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl text-md font-bold hover:bg-indigo-700 transition-all shadow-lg"
+                  >
+                    <LayoutDashboard size={18} />
+                    Admin Portal
+                  </button>
+                )}
+                {!user ? (
+                  <button 
+                    onClick={() => {
+                      handleLogin();
+                      setShowMobileMenu(false);
+                    }}
+                    className="w-full px-6 py-3 bg-slate-900 text-white rounded-xl text-md font-bold hover:bg-[#D4AF37] transition-all shadow-lg"
+                  >
+                    Sign In
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      handleLogout();
+                      setShowMobileMenu(false);
+                    }}
+                    className="w-full px-6 py-3 bg-rose-50 text-rose-600 rounded-xl text-md font-bold hover:bg-rose-100 transition-all shadow-lg"
+                  >
+                    Sign Out
+                  </button>
+                )}
               </div>
             </motion.div>
           )}
@@ -1984,7 +2676,83 @@ export default function App() {
           </div>
         </section>
 
-        {/* FAQ Section */}
+          {/* Featured Inventions Section */}
+          <section id="inventions" className="py-24 bg-white">
+            <div className="max-w-7xl mx-auto px-6">
+              <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+                <div>
+                  <span className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.4em] mb-4 block">Innovation Lab</span>
+                  <h2 className="text-4xl lg:text-6xl font-black tracking-tighter text-slate-900 uppercase">Featured <span className="text-[#D4AF37]">Inventions</span></h2>
+                </div>
+                <button onClick={() => setCurrentPublicPage('inventions')} className="text-sm font-bold text-slate-400 hover:text-[#D4AF37] transition-all flex items-center gap-2 group">
+                  View Innovation Portal <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {inventions.filter(inv => inv.status === 'active').slice(0, 3).map((invention, i) => (
+                  <motion.div 
+                    key={invention.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                    onClick={() => setCurrentPublicPage('inventions')}
+                    className="group cursor-pointer bg-slate-50 p-8 rounded-[40px] border border-transparent hover:border-[#D4AF37] transition-all"
+                  >
+                    <div className="aspect-video bg-white rounded-2xl overflow-hidden mb-6 relative shadow-sm">
+                      {invention.imageUrl ? (
+                        <img src={invention.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={invention.title} referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-50 to-white">
+                          <Lightbulb size={48} className="text-[#D4AF37] opacity-20" />
+                        </div>
+                      )}
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 mb-2 truncate uppercase">{invention.title}</h3>
+                    <p className="text-slate-500 line-clamp-2 text-sm leading-relaxed mb-6">{invention.description}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest bg-white px-3 py-1 rounded-full border border-amber-100 italic">Patented</span>
+                      <ChevronRight size={20} className="text-slate-300 group-hover:text-[#D4AF37] transition-colors" />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Latest News Section */}
+          <section id="news" className="py-24 bg-slate-50">
+            <div className="max-w-7xl mx-auto px-6">
+              <div className="text-center mb-16">
+                <span className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.4em] mb-4 block">The Fiezta Journal</span>
+                <h2 className="text-4xl lg:text-6xl font-black tracking-tighter text-slate-900 uppercase">Latest <span className="text-[#D4AF37]">News</span></h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {wpPosts.filter(p => p.status === 'publish').slice(0, 3).map((post, i) => (
+                  <motion.div 
+                    key={post.id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                    className="bg-white p-8 rounded-[40px] border border-slate-100 hover:shadow-2xl hover:shadow-slate-200 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 mb-6">
+                      <span className="px-3 py-1 bg-amber-50 text-[#D4AF37] text-[10px] font-black uppercase tracking-widest rounded-full">Article</span>
+                      <span className="text-[10px] font-bold text-slate-300">{post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Recent'}</span>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 mb-4 line-clamp-2 group-hover:text-[#D4AF37] transition-colors">{post.title}</h3>
+                    <p className="text-slate-500 text-sm mb-6 line-clamp-3 leading-relaxed">{post.content?.replace(/<[^>]*>/g, '').substring(0, 150)}...</p>
+                    <button className="text-xs font-black uppercase tracking-widest text-slate-900 flex items-center gap-2 group-hover:gap-4 transition-all">
+                      Read Entry <ChevronRight size={14} />
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* FAQ Section */}
         <section className="py-32 bg-white">
           <div className="max-w-3xl mx-auto px-6">
             <div className="text-center mb-16">
@@ -2047,15 +2815,41 @@ export default function App() {
               </div>
               
               <div className="bg-white rounded-[40px] p-8 sm:p-12 shadow-2xl">
-                <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+                <form className="space-y-6" onSubmit={async (e) => {
+                  e.preventDefault();
+                  const target = e.target as any;
+                  const name = target[0].value;
+                  const email = target[1].value;
+                  const interest = target[2].value;
+                  const message = target[3].value;
+                  
+                  try {
+                    await addDoc(collection(db, 'service_enquiries'), {
+                      agencyId: profile?.agencyId || 'default',
+                      name,
+                      email,
+                      interest,
+                      message,
+                      status: 'new',
+                      createdAt: new Date().toISOString()
+                    });
+                    
+                    addNotification('Enquiry Received', `New enquiry from ${name} regarding ${interest}`, 'success');
+                    console.log(`[EMAIL SIMULANT] Sending enquiry notification to agency admin and confirmation to ${email}`);
+                    alert('Thank you for your enquiry! Our concierge will contact you shortly.');
+                    target.reset();
+                  } catch (error) {
+                    handleFirestoreError(error, OperationType.WRITE, 'service_enquiries');
+                  }
+                }}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Full Name</label>
-                      <input type="text" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all" placeholder="John Doe" />
+                      <input required type="text" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all" placeholder="John Doe" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Email Address</label>
-                      <input type="email" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all" placeholder="john@example.com" />
+                      <input required type="email" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all" placeholder="john@example.com" />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -2065,13 +2859,14 @@ export default function App() {
                       <option>Travel & Tours</option>
                       <option>Elite Rentals</option>
                       <option>DMV Concierge</option>
+                      <option>Wireless Energy / Inventions</option>
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Message</label>
-                    <textarea rows={4} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all resize-none" placeholder="How can we help you?"></textarea>
+                    <textarea required rows={4} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#D4AF37] outline-none transition-all resize-none" placeholder="How can we help you?"></textarea>
                   </div>
-                  <button className="w-full py-5 bg-[#D4AF37] text-white rounded-2xl font-black text-lg hover:bg-amber-600 transition-all shadow-xl shadow-amber-200 uppercase tracking-widest">
+                  <button type="submit" className="w-full py-5 bg-[#D4AF37] text-white rounded-2xl font-black text-lg hover:bg-amber-600 transition-all shadow-xl shadow-amber-200 uppercase tracking-widest">
                     Send Inquiry
                   </button>
                 </form>
@@ -2103,6 +2898,31 @@ export default function App() {
                 </p>
               </div>
               <div>
+                <h5 className="font-bold text-slate-900 mb-6 uppercase tracking-widest text-xs">Explore</h5>
+                <ul className="space-y-4">
+                  {menus.find(m => m.location === 'footer-explore')?.items.sort((a, b) => a.order - b.order).map(item => (
+                    <li key={item.label}>
+                      <button 
+                        onClick={() => {
+                          if (item.url.startsWith('/')) {
+                            setCurrentPublicPage(item.url.substring(1));
+                          } else if (item.url.startsWith('#')) {
+                            setCurrentPublicPage('home');
+                            setTimeout(() => {
+                              const el = document.querySelector(item.url);
+                              if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }, 300);
+                          }
+                        }}
+                        className="text-slate-500 hover:text-[#D4AF37] transition-colors text-sm"
+                      >
+                        {item.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
                 <h5 className="font-bold text-slate-900 mb-6 uppercase tracking-widest text-xs">Company</h5>
                 <ul className="space-y-4">
                   {menus.find(m => m.location === 'footer-company')?.items.sort((a, b) => a.order - b.order).map(item => (
@@ -2120,7 +2940,7 @@ export default function App() {
               </div>
             </div>
             <div className="pt-12 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6">
-              <p className="text-slate-400 text-sm">© 2026 {siteSettings?.siteName || 'Fiezta CMS'}. All rights reserved.</p>
+              <p className="text-slate-400 text-sm">© 2026 {siteSettings?.siteName || 'Fiezta International'}. All rights reserved.</p>
               <div className="flex gap-6">
                 {siteSettings?.facebook && <a href={siteSettings.facebook} className="text-slate-400 hover:text-primary transition-colors"><Facebook size={20} /></a>}
                 {siteSettings?.instagram && <a href={siteSettings.instagram} className="text-slate-400 hover:text-primary transition-colors"><Instagram size={20} /></a>}
@@ -2447,9 +3267,108 @@ export default function App() {
                 className="pl-10 pr-4 py-2 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 w-48 xl:w-64 transition-all"
               />
             </div>
-            <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg relative">
-              <div className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></div>
-              <AlertCircle size={20} />
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={cn(
+                  "p-2 text-slate-500 hover:bg-slate-100 rounded-lg relative transition-all",
+                  showNotifications && "bg-slate-100 text-indigo-600"
+                )}
+              >
+                {notifications.some(n => !n.read) && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+                )}
+                <Bell size={20} />
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <>
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setShowNotifications(false)}
+                      className="fixed inset-0 z-40"
+                    />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-2 w-80 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden z-50 origin-top-right"
+                    >
+                      <div className="p-5 border-b border-slate-50 flex items-center justify-between">
+                        <h3 className="font-black text-slate-900">Notifications</h3>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                            className="text-[10px] font-bold text-indigo-600 hover:underline uppercase tracking-widest"
+                          >
+                            Mark all read
+                          </button>
+                        </div>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto custom-scrollbar">
+                        {notifications.length > 0 ? (
+                          <div className="divide-y divide-slate-50">
+                            {notifications.map((notif) => (
+                              <div 
+                                key={notif.id} 
+                                className={cn(
+                                  "p-4 hover:bg-slate-50 transition-colors cursor-pointer relative",
+                                  !notif.read && "bg-indigo-50/30"
+                                )}
+                                onClick={() => {
+                                  setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+                                }}
+                              >
+                                {!notif.read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600"></div>}
+                                <div className="flex items-start gap-3">
+                                  <div className={cn(
+                                    "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                                    notif.type === 'success' ? "bg-emerald-50 text-emerald-600" :
+                                    notif.type === 'warning' ? "bg-amber-50 text-amber-600" :
+                                    notif.type === 'error' ? "bg-rose-50 text-rose-600" :
+                                    "bg-indigo-50 text-indigo-600"
+                                  )}>
+                                    {notif.type === 'success' ? <CheckCircle size={14} /> :
+                                     notif.type === 'error' ? <AlertCircle size={14} /> :
+                                     <Sparkles size={14} />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-slate-900 truncate">{notif.title}</p>
+                                    <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{notif.message}</p>
+                                    <p className="text-[10px] text-slate-400 mt-2 font-mono">{new Date(notif.time).toLocaleTimeString()}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-12 text-center">
+                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <Bell size={24} className="text-slate-300" />
+                            </div>
+                            <p className="text-slate-400 text-sm font-medium">All caught up!</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                        <button className="text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors">
+                          View All Notifications
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+            <button 
+              onClick={() => setIsManagementMode(false)}
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
+              title="Go to Landing Page"
+            >
+              <Home size={20} />
             </button>
             <div className="md:hidden">
               <img 
@@ -2937,66 +3856,15 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-slate-900">My Bookings</h3>
-                </div>
-
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/50">
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Reference</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Package</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Travel Date</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Total</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {bookings.length > 0 ? bookings.map((booking, idx) => (
-                          <tr 
-                            key={`${booking.id}-${idx}`} 
-                            className="hover:bg-slate-50/50 transition-colors cursor-pointer"
-                            onClick={() => {
-                              setSelectedBookingDetail(booking);
-                              setIsBookingDetailModalOpen(true);
-                            }}
-                          >
-                            <td className="px-6 py-4 text-sm font-mono text-slate-500">#{booking.id.slice(0, 8)}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-slate-900">{booking.packageName}</td>
-                            <td className="px-6 py-4 text-sm text-slate-600">{new Date(booking.travelDate).toLocaleDateString()}</td>
-                            <td className="px-6 py-4"><StatusBadge status={booking.status} /></td>
-                            <td className="px-6 py-4 text-sm font-bold text-slate-900">{formatCurrency(booking.totalAmount)}</td>
-                            <td className="px-6 py-4 text-right">
-                              <button className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all">
-                                Details
-                              </button>
-                            </td>
-                          </tr>
-                        )) : (
-                          <tr>
-                            <td colSpan={6} className="px-6 py-20 text-center">
-                              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
-                                <Calendar size={24} />
-                              </div>
-                              <p className="text-slate-500">You don't have any bookings yet.</p>
-                              <button 
-                                onClick={() => setActiveTab('packages')}
-                                className="mt-4 text-indigo-600 font-bold hover:underline"
-                              >
-                                Browse Packages
-                              </button>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <GenericCRUD 
+                  entityName="Booking" 
+                  collectionName="bookings" 
+                  agencyId={agencyId || ''} 
+                  fields={bookingFields as any}
+                  displayFields={['clientName', 'packageName', 'travelDate', 'status']}
+                  profile={profile}
+                />
               </motion.div>
             )}
 
@@ -3106,105 +3974,18 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">Newsletter & Marketing</h1>
-                    <p className="text-slate-500 text-sm">Manage subscribers and automated notifications.</p>
-                  </div>
-                  <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
-                    <Send size={20} />
-                    Create Campaign
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                      <h3 className="text-lg font-black text-slate-900">Subscribers</h3>
-                      <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold">
-                        {subscribers.length} Total
-                      </span>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="bg-slate-50/50">
-                            <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Subscriber</th>
-                            <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Status</th>
-                            <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Joined</th>
-                            <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {subscribers.map((sub, idx) => (
-                            <tr key={`${sub.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
-                                    {sub.email.charAt(0).toUpperCase()}
-                                  </div>
-                                  <span className="text-sm font-medium text-slate-700">{sub.email}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <StatusBadge status={sub.status} />
-                              </td>
-                              <td className="px-6 py-4 text-sm text-slate-500">
-                                {new Date(sub.subscribedAt).toLocaleDateString()}
-                              </td>
-                              <td className="px-6 py-4">
-                                <button className="text-slate-400 hover:text-red-500 transition-colors">
-                                  <Trash2 size={16} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
-                      <h3 className="text-lg font-black text-slate-900 mb-4">Automation Rules</h3>
-                      <div className="space-y-4">
-                        {[
-                          { title: 'Booking Confirmation', icon: CheckCircle2, color: 'text-green-500' },
-                          { title: 'Payment Reminders', icon: Clock, color: 'text-amber-500' },
-                          { title: 'Travel Updates', icon: Plane, color: 'text-indigo-500' },
-                          { title: 'Welcome Series', icon: Heart, color: 'text-rose-500' }
-                        ].map((rule, idx) => {
-                          const Icon = rule.icon;
-                          return (
-                            <div key={idx} className="flex items-center justify-between p-3 rounded-2xl border border-slate-50 hover:border-indigo-100 transition-all cursor-pointer">
-                              <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-xl bg-slate-50 ${rule.color}`}>
-                                  <Icon size={18} />
-                                </div>
-                                <span className="text-sm font-bold text-slate-700">{rule.title}</span>
-                              </div>
-                              <div className="w-10 h-5 bg-indigo-600 rounded-full relative">
-                                <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full"></div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="bg-indigo-600 p-6 rounded-[32px] text-white shadow-lg shadow-indigo-100">
-                      <h3 className="text-lg font-black mb-2">SMS & WhatsApp</h3>
-                      <p className="text-indigo-100 text-xs mb-4 leading-relaxed">
-                        Integrate Twilio or Meta API to send real-time alerts to your clients directly on their mobile devices.
-                      </p>
-                      <button className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-sm font-bold transition-all border border-white/20">
-                        Configure Integration
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <GenericCRUD 
+                  entityName="Subscriber" 
+                  collectionName="subscribers" 
+                  agencyId={agencyId || ''} 
+                  fields={[
+                    { name: 'email', label: 'Email', type: 'text', required: true },
+                    { name: 'status', label: 'Status', type: 'select', options: ['active', 'unsubscribed'] }
+                  ] as any}
+                  displayFields={['email', 'status', 'createdAt']}
+                  profile={profile}
+                />
               </motion.div>
             )}
 
@@ -3214,49 +3995,15 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">Accommodations</h1>
-                    <p className="text-slate-500 text-sm">Manage hotels, apartments, and availability.</p>
-                  </div>
-                  <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
-                    <Plus size={20} />
-                    Add Accommodation
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {accommodations.map((acc, idx) => (
-                    <div key={`${acc.id}-${idx}`} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
-                      <div className="h-48 bg-slate-200 relative">
-                        <img src={acc.imageUrl || 'https://picsum.photos/seed/hotel/800/600'} className="w-full h-full object-cover" alt={acc.name} />
-                        <div className="absolute top-4 right-4">
-                          <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-indigo-600 shadow-sm uppercase tracking-widest">
-                            {acc.type}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="p-6">
-                        <h3 className="text-xl font-black text-slate-900 mb-1">{acc.name}</h3>
-                        <p className="text-slate-500 text-sm flex items-center gap-1 mb-4">
-                          <MapPin size={14} className="text-[#D4AF37]" />
-                          {acc.location}
-                        </p>
-                        <div className="flex items-center justify-between py-4 border-t border-slate-100">
-                          <div>
-                            <p className="text-2xl font-black text-slate-900">{formatCurrency(acc.pricePerNight)}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">per night</p>
-                          </div>
-                          <button className="px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all">
-                            Manage Pricing
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <GenericCRUD 
+                  entityName="Accommodation" 
+                  collectionName="accommodations" 
+                  agencyId={agencyId || ''} 
+                  fields={accommodationFields as any}
+                  displayFields={['name', 'type', 'location', 'pricePerNight']}
+                  profile={profile}
+                />
               </motion.div>
             )}
 
@@ -3266,49 +4013,15 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">Transport Fleet</h1>
-                    <p className="text-slate-500 text-sm">Manage vehicles, flights, and logistics.</p>
-                  </div>
-                  <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
-                    <Plus size={20} />
-                    Add Vehicle
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {transport.map((item, idx) => (
-                    <div key={`${item.id}-${idx}`} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
-                      <div className="h-48 bg-slate-200 relative">
-                        <img src={item.imageUrl || 'https://picsum.photos/seed/car/800/600'} className="w-full h-full object-cover" alt={item.provider} />
-                        <div className="absolute top-4 right-4">
-                          <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-indigo-600 shadow-sm uppercase tracking-widest">
-                            {item.type}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="p-6">
-                        <h3 className="text-xl font-black text-slate-900 mb-1">{item.provider} {item.model}</h3>
-                        <p className="text-slate-500 text-sm flex items-center gap-1 mb-4">
-                          <Users size={14} className="text-[#D4AF37]" />
-                          Capacity: {item.capacity} Persons
-                        </p>
-                        <div className="flex items-center justify-between py-4 border-t border-slate-100">
-                          <div>
-                            <p className="text-2xl font-black text-slate-900">{formatCurrency(item.price)}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">base price</p>
-                          </div>
-                          <button className="px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-100 transition-all">
-                            Check Availability
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <GenericCRUD 
+                  entityName="Transport" 
+                  collectionName="transport" 
+                  agencyId={agencyId || ''} 
+                  fields={transportFields as any}
+                  displayFields={['provider', 'type', 'model', 'price']}
+                  profile={profile}
+                />
               </motion.div>
             )}
 
@@ -3326,6 +4039,7 @@ export default function App() {
                   agencyId={agencyId || ''} 
                   fields={invoiceFields as any}
                   displayFields={['bookingId', 'amount', 'status', 'dueDate']}
+                  profile={profile}
                 />
               </motion.div>
             )}
@@ -3346,6 +4060,7 @@ export default function App() {
                   fields={staffFields as any}
                   displayFields={['displayName', 'email', 'role']}
                   fixedFilters={{ role: ['agent', 'accountant', 'support', 'admin'] }}
+                  profile={profile}
                 />
               </motion.div>
             )}
@@ -3375,6 +4090,7 @@ export default function App() {
                   fields={clientFields as any}
                   displayFields={['displayName', 'email', 'phoneNumber']}
                   fixedFilters={{ role: 'client' }}
+                  profile={profile}
                 />
               </motion.div>
             )}
@@ -3392,6 +4108,7 @@ export default function App() {
                   agencyId={agencyId || ''} 
                   fields={taskFields as any}
                   displayFields={['title', 'status', 'dueDate']}
+                  profile={profile}
                 />
               </motion.div>
             )}
@@ -3404,49 +4121,15 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-slate-900">Payment Transactions</h3>
-                  <div className="flex items-center gap-3">
-                    <div className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm">
-                      Total Collected: {formatCurrency(bookings.reduce((acc, b) => acc + b.paidAmount, 0))}
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                  <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full text-left min-w-[600px]">
-                      <thead>
-                        <tr className="bg-slate-50/50">
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Reference</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Client</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                      {bookings.filter(b => b.paidAmount > 0).map((b) => (
-                        <tr key={b.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 text-sm font-mono text-slate-500">#{b.id.slice(0, 8)}</td>
-                          <td className="px-6 py-4 text-sm font-bold text-slate-900">{b.clientName}</td>
-                          <td className="px-6 py-4 text-sm font-bold text-slate-900">{formatCurrency(b.paidAmount)}</td>
-                          <td className="px-6 py-4">
-                            <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full uppercase">
-                              Success
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">{new Date(b.createdAt).toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                      {bookings.filter(b => b.paidAmount > 0).length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-slate-500">No payment transactions found.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                <GenericCRUD 
+                  entityName="Payment" 
+                  collectionName="bookings" 
+                  agencyId={agencyId || ''} 
+                  fields={bookingFields as any}
+                  displayFields={['clientName', 'packageName', 'paidAmount', 'paymentStatus']}
+                  fixedFilters={{ paymentStatus: 'paid' }}
+                  profile={profile}
+                />
             </motion.div>
           )}
 
@@ -3456,69 +4139,20 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">Document Management</h1>
-                    <p className="text-slate-500 text-sm">Secure storage for passports, visas, and travel tickets.</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">
-                      <PlusCircle size={18} />
-                      Upload Document
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {documents.length > 0 && documents.map((doc) => (
-                    <div key={doc.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-all">
-                          {doc.type === 'passport' ? <ShieldCheck size={24} /> : 
-                           doc.type === 'visa' ? <Globe size={24} /> : 
-                           <FileText size={24} />}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><Download size={16} /></button>
-                          <button className="p-2 text-slate-400 hover:text-rose-600 transition-colors"><Trash2 size={16} /></button>
-                        </div>
-                      </div>
-                      <h4 className="font-bold text-slate-900 mb-1">{doc.title}</h4>
-                      <div className="flex items-center gap-2 mb-4">
-                        <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase font-bold">{doc.type}</span>
-                        {doc.expiryDate && (
-                          <span className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded uppercase font-bold",
-                            new Date(doc.expiryDate) < new Date() ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                          )}>
-                            Exp: {new Date(doc.expiryDate).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center">
-                            <UserIcon size={12} className="text-slate-400" />
-                          </div>
-                          <span className="text-xs text-slate-500 font-medium">{doc.clientName}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{doc.fileSize}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {documents.length === 0 && (
-                    <div className="col-span-full bg-white p-12 rounded-[32px] border-2 border-dashed border-slate-200 text-center">
-                      <FileCheck className="mx-auto mb-4 text-slate-300" size={48} />
-                      <p className="font-bold text-slate-500">No documents uploaded yet.</p>
-                      <p className="text-sm text-slate-400 mt-1">Upload passports, visas, or tickets for secure access.</p>
-                      <button className="mt-6 px-8 py-3 bg-slate-900 text-white rounded-2xl text-sm font-bold hover:bg-indigo-600 transition-all">
-                        Upload First Document
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <GenericCRUD 
+                  entityName="Document" 
+                  collectionName="documents" 
+                  agencyId={agencyId || ''} 
+                  fields={[
+                    { name: 'title', label: 'Title', type: 'text', required: true },
+                    { name: 'type', label: 'Type', type: 'select', options: ['passport', 'visa', 'ticket', 'itinerary', 'other'] },
+                    { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
+                    { name: 'clientName', label: 'Client Name', type: 'text' }
+                  ] as any}
+                  displayFields={['title', 'type', 'clientName', 'expiryDate']}
+                  profile={profile}
+                />
               </motion.div>
             )}
 
@@ -3528,97 +4162,15 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tighter text-slate-900">WordPress Integration</h1>
-                    <p className="text-slate-500 text-sm">Connect your blog and sync content via Headless CMS approach.</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">
-                      <RefreshCw size={18} />
-                      Sync Content
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">
-                      <Settings size={18} />
-                      WP Config
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
-                      <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                        <h3 className="font-bold text-slate-900">Synced Blog Posts</h3>
-                        <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full uppercase">Live Sync Active</span>
-                      </div>
-                      <div className="divide-y divide-slate-50">
-                        {wpPosts.length > 0 ? wpPosts.map((post, idx) => (
-                          <div key={`${post.id}-${idx}`} className="p-6 hover:bg-slate-50 transition-colors group">
-                            <div className="flex items-start justify-between">
-                              <div className="space-y-1">
-                                <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{post.title}</h4>
-                                <p className="text-sm text-slate-500 line-clamp-2">{post.excerpt}</p>
-                                <div className="flex items-center gap-3 mt-2">
-                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(post.date).toLocaleDateString()}</span>
-                                  <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase font-bold">{post.status}</span>
-                                </div>
-                              </div>
-                              <a href={post.link} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
-                                <ExternalLink size={18} />
-                              </a>
-                            </div>
-                          </div>
-                        )) : (
-                          <div className="p-12 text-center text-slate-400">
-                            <RefreshCw className="mx-auto mb-4 animate-spin-slow" size={32} />
-                            <p className="font-bold">No posts synced yet.</p>
-                            <p className="text-xs mt-1">Check your WP configuration or click Sync Content.</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
-                      <h3 className="text-lg font-black text-slate-900 mb-4">WP Bridge Status</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
-                              <RefreshCw size={20} />
-                            </div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-400 uppercase">API Status</p>
-                              <p className="text-sm font-bold text-slate-900">{wpConfig.status === 'connected' ? 'Connected' : 'Disconnected'}</p>
-                            </div>
-                          </div>
-                          <div className={cn("w-3 h-3 rounded-full", wpConfig.status === 'connected' ? "bg-emerald-500" : "bg-rose-500")}></div>
-                        </div>
-                        <div className="p-4 border border-slate-100 rounded-2xl space-y-2">
-                          <p className="text-xs font-bold text-slate-400 uppercase">Endpoint URL</p>
-                          <p className="text-sm font-mono text-slate-600 truncate">{wpConfig.url || 'Not configured'}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-900 p-6 rounded-[32px] text-white">
-                      <h3 className="text-lg font-black mb-4 flex items-center gap-2">
-                        <Layers size={20} className="text-amber-400" />
-                        Theme Bridge
-                      </h3>
-                      <p className="text-slate-400 text-xs leading-relaxed mb-6">
-                        Import your WordPress theme styles and layouts directly into Fiezta for a unified brand experience.
-                      </p>
-                      <button className="w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-sm font-bold transition-all border border-white/10">
-                        Import Theme Assets
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <GenericCRUD 
+                  entityName="Blog Post" 
+                  collectionName="wp_posts" 
+                  agencyId={agencyId || ''} 
+                  fields={wpPostFields as any}
+                  displayFields={['title', 'authorName', 'status', 'createdAt']}
+                  profile={profile}
+                />
               </motion.div>
             )}
 
@@ -3637,20 +4189,21 @@ export default function App() {
                   displayFields={['title', 'status']}
                   allowFiltering={true}
                   allowSorting={true}
+                  profile={profile}
                 />
               </motion.div>
             )}
 
             {activeTab === 'social' && (
-              <SocialDashboard agencyId={agencyId!} />
+              <SocialDashboard agencyId={agencyId!} profile={profile} />
             )}
 
             {activeTab === 'vlogs' && (
-              <VlogManagement agencyId={agencyId!} />
+              <VlogManagement agencyId={agencyId!} profile={profile} />
             )}
 
             {activeTab === 'themes' && (
-              <ThemeManager agencyId={agencyId!} />
+              <ThemeManager agencyId={agencyId!} profile={profile} />
             )}
 
             {activeTab === 'crud' && (
@@ -3701,6 +4254,7 @@ export default function App() {
                       collectionName={selectedCrudEntity.collection}
                       fields={selectedCrudEntity.fields as any}
                       displayFields={selectedCrudEntity.display}
+                      profile={profile}
                     />
                   </div>
                 )}
@@ -3725,6 +4279,7 @@ export default function App() {
                     agencyId={agencyId || ''} 
                     fields={siteSettingsFields as any}
                     displayFields={['siteName', 'contactEmail', 'contactPhone']}
+                    profile={profile}
                   />
                 </div>
               </motion.div>
@@ -3847,6 +4402,7 @@ export default function App() {
                       agencyId={agencyId || ''} 
                       fields={customFormFields as any}
                       displayFields={['title', 'createdAt']}
+                      profile={profile}
                     />
                   </section>
 
@@ -3861,6 +4417,7 @@ export default function App() {
                       agencyId={agencyId || ''} 
                       fields={popupCampaignFields as any}
                       displayFields={['title', 'type', 'trigger', 'isActive']}
+                      profile={profile}
                     />
                   </section>
                 </div>
@@ -4290,6 +4847,10 @@ export default function App() {
           )}
 
           <BookingDetailModal />
+          <AccommodationDetailModal />
+          <TransportDetailModal />
+          <DocumentDetailModal />
+          <WpPostDetailModal />
         </AnimatePresence>
     </div>
   );

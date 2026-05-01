@@ -44,10 +44,12 @@ import { db } from '../firebase';
 import { Theme } from '../types';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { logActivity } from '../lib/security';
 import { GoogleGenAI, Type as SchemaType } from "@google/genai";
 
 interface ThemeManagerProps {
   agencyId: string;
+  profile?: any;
 }
 
 const DEFAULT_THEME_CONFIG = {
@@ -61,7 +63,7 @@ const DEFAULT_THEME_CONFIG = {
   glassmorphism: false
 };
 
-export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
+export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId, profile }) => {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -71,6 +73,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
   const [activeTheme, setActiveTheme] = useState<Theme | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -79,6 +82,10 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
     config: { ...DEFAULT_THEME_CONFIG },
     isAdminTheme: false
   });
+
+  const [viewingTheme, setViewingTheme] = useState<Theme | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(6);
 
   useEffect(() => {
     const q = query(collection(db, 'themes'), where('agencyId', '==', agencyId));
@@ -90,6 +97,13 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
     }, (error) => handleFirestoreError(error, OperationType.GET, 'themes'));
     return () => unsubscribe();
   }, [agencyId]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(themes.length / itemsPerPage);
+  const paginatedThemes = themes.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleSave = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -137,8 +151,30 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
     if (window.confirm("Are you sure you want to delete this theme?")) {
       try {
         await deleteDoc(doc(db, 'themes', id));
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'DELETE', 'Theme', id, `Deleted theme`);
+        }
+        setSelectedIds(prev => prev.filter(i => i !== id));
       } catch (error) {
-        console.error("Error deleting theme:", error);
+        handleFirestoreError(error, OperationType.DELETE, `themes/${id}`);
+      }
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (window.confirm(`Are you sure you want to delete ${selectedIds.length} themes?`)) {
+      try {
+        const promises = selectedIds.map(id => deleteDoc(doc(db, 'themes', id)));
+        await Promise.all(promises);
+        
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'BULK_DELETE', 'Theme', 'multiple', `Deleted ${selectedIds.length} themes`);
+        }
+        
+        setSelectedIds([]);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'themes');
       }
     }
   };
@@ -345,6 +381,15 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
           <p className="text-slate-500 text-sm">Customize your agency's visual identity with AI-powered themes.</p>
         </div>
         <div className="flex gap-3">
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={handleBulkDelete}
+              className="flex items-center gap-2 px-6 py-3 bg-rose-500 text-white rounded-2xl font-bold hover:bg-rose-600 shadow-lg shadow-rose-100 transition-all"
+            >
+              <Trash2 size={20} />
+              Delete Selected ({selectedIds.length})
+            </button>
+          )}
           <button 
             onClick={seedThemes}
             className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl font-bold hover:bg-amber-600 shadow-lg shadow-amber-100 transition-all"
@@ -446,15 +491,27 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
           Array(3).fill(0).map((_, i) => (
             <div key={i} className="h-64 bg-slate-100 rounded-[32px] animate-pulse" />
           ))
-        ) : themes.map((theme) => (
+        ) : paginatedThemes.map((theme) => (
           <motion.div 
             key={theme.id}
             layout
             className={cn(
-              "bg-white rounded-[32px] border-2 p-6 transition-all group relative overflow-hidden",
-              theme.isActive ? "border-indigo-600 shadow-xl shadow-indigo-50" : "border-slate-100 hover:border-slate-200"
+              "bg-white rounded-[32px] border-2 p-6 transition-all group relative overflow-hidden cursor-pointer",
+              theme.isActive ? "border-indigo-600 shadow-xl shadow-indigo-50" : (selectedIds.includes(theme.id) ? "border-indigo-400 bg-indigo-50/30" : "border-slate-100 hover:border-slate-200")
             )}
+            onClick={() => {
+              if (selectedIds.includes(theme.id)) {
+                setSelectedIds(prev => prev.filter(id => id !== theme.id));
+              } else {
+                setSelectedIds(prev => [...prev, theme.id]);
+              }
+            }}
           >
+            {selectedIds.includes(theme.id) && (
+              <div className="absolute top-4 left-4 bg-indigo-600 text-white p-1 rounded-full shadow-lg z-10">
+                <Check size={12} />
+              </div>
+            )}
             {theme.isActive && (
               <div className="absolute top-4 right-4 bg-indigo-600 text-white p-1.5 rounded-full shadow-lg">
                 <Check size={14} />
@@ -474,7 +531,18 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
                 </div>
               </div>
               <div>
-                <h3 className="font-black text-slate-900 tracking-tight">{theme.name}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-slate-900 tracking-tight">{theme.name}</h3>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewingTheme(theme);
+                    }}
+                    className="p-1 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                  >
+                    <Eye size={16} />
+                  </button>
+                </div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                   {theme.isAdminTheme ? 'Admin Theme' : 'Client Theme'}
                 </p>
@@ -493,7 +561,8 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
             <div className="flex items-center justify-between pt-4 border-t border-slate-50">
               <div className="flex gap-2">
                 <button 
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setEditingTheme(theme);
                     setFormData({
                       name: theme.name,
@@ -508,7 +577,10 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
                   <Settings2 size={18} />
                 </button>
                 <button 
-                  onClick={() => handleDelete(theme.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(theme.id);
+                  }}
                   className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                 >
                   <Trash2 size={18} />
@@ -516,7 +588,10 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
               </div>
               {!theme.isActive && (
                 <button 
-                  onClick={() => handleActivate(theme.id, theme.isAdminTheme)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleActivate(theme.id, theme.isAdminTheme);
+                  }}
                   className="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all"
                 >
                   Activate
@@ -526,6 +601,179 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId }) => {
           </motion.div>
         ))}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white px-8 py-4 rounded-[32px] border border-slate-100 shadow-sm">
+          <div className="text-sm font-bold text-slate-500">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <RefreshCw size={18} className="rotate-180" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={cn(
+                  "w-10 h-10 rounded-xl font-bold transition-all",
+                  currentPage === page 
+                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" 
+                    : "text-slate-500 hover:bg-slate-50"
+                )}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* View Theme Modal */}
+      <AnimatePresence>
+        {viewingTheme && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-[40px] w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-full max-h-[85vh]"
+            >
+              <div className="w-full md:w-[350px] p-8 border-r border-slate-100 bg-slate-50 overflow-y-auto">
+                <div className="mb-8">
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">{viewingTheme.name}</h2>
+                  <p className="text-slate-500 text-sm">{viewingTheme.description || "No description available."}</p>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Color Palette</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { label: 'Primary', color: viewingTheme.config.primaryColor },
+                        { label: 'Secondary', color: viewingTheme.config.secondaryColor },
+                        { label: 'Accent', color: viewingTheme.config.accentColor },
+                        { label: 'Background', color: viewingTheme.config.backgroundColor },
+                        { label: 'Text', color: viewingTheme.config.textColor }
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg shadow-sm border border-slate-200" style={{ backgroundColor: item.color }} />
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">{item.label}</p>
+                            <p className="text-xs font-mono font-bold text-slate-700">{item.color}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Configuration</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500">Font Family</span>
+                        <span className="font-bold text-slate-900">{viewingTheme.config.fontFamily}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500">Border Radius</span>
+                        <span className="font-bold text-slate-900">{viewingTheme.config.borderRadius}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500">Glassmorphism</span>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-lg text-[10px] font-black uppercase",
+                          viewingTheme.config.glassmorphism ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-400"
+                        )}>
+                          {viewingTheme.config.glassmorphism ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500">Type</span>
+                        <span className="font-bold text-slate-900">{viewingTheme.isAdminTheme ? 'Admin' : 'Client'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-slate-100">
+                  <button 
+                    onClick={() => setViewingTheme(null)}
+                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all"
+                  >
+                    Close Preview
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 bg-slate-200 p-8 sm:p-12 overflow-y-auto flex items-center justify-center">
+                 <div 
+                  className="w-full max-w-2xl bg-white rounded-[32px] shadow-2xl overflow-hidden"
+                  style={{ 
+                    backgroundColor: viewingTheme.config.backgroundColor,
+                    fontFamily: viewingTheme.config.fontFamily,
+                    color: viewingTheme.config.textColor,
+                    borderRadius: viewingTheme.config.borderRadius
+                  }}
+                >
+                  <div className="p-8 border-b border-slate-100 flex items-center justify-between" style={{ borderColor: `${viewingTheme.config.textColor}10` }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl" style={{ backgroundColor: viewingTheme.config.primaryColor }} />
+                      <span className="text-xl font-black tracking-tighter">Preview</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="w-8 h-8 rounded-full" style={{ backgroundColor: viewingTheme.config.secondaryColor }} />
+                      <div className="w-8 h-8 rounded-full" style={{ backgroundColor: viewingTheme.config.accentColor }} />
+                    </div>
+                  </div>
+                  
+                  <div className="p-12 space-y-8 text-center sm:text-left">
+                    <div className="space-y-4">
+                      <h1 className="text-4xl font-black tracking-tight leading-none">Luxury Travel Redefined</h1>
+                      <p className="text-lg opacity-70">Bespoke experiences crafted for the modern explorer.</p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center sm:justify-start">
+                      <button 
+                        className="px-8 py-4 rounded-2xl font-bold text-white shadow-xl"
+                        style={{ backgroundColor: viewingTheme.config.primaryColor }}
+                      >
+                        Get Started
+                      </button>
+                      <button 
+                        className="px-8 py-4 rounded-2xl font-bold border-2"
+                        style={{ borderColor: viewingTheme.config.primaryColor, color: viewingTheme.config.primaryColor }}
+                      >
+                        Contact Us
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[1, 2].map(i => (
+                        <div key={i} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50" style={{ borderColor: `${viewingTheme.config.textColor}10` }}>
+                          <h3 className="font-bold text-lg mb-2">Premium Detail {i}</h3>
+                          <p className="text-sm opacity-60">Demonstrating how your theme handles card layouts and typography.</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Theme Editor Modal */}
       <AnimatePresence>

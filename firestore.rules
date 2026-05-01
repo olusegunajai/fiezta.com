@@ -198,6 +198,27 @@ service cloud.firestore {
       allow write: if isAgencyAdmin() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
     }
 
+    match /inventions/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /faqs/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /reviews/{id} {
+      allow read: if true;
+      allow write: if isStaff() && belongsToAgency(resource == null ? request.resource.data.agencyId : resource.data.agencyId) || isSuperAdmin();
+    }
+
+    match /service_enquiries/{id} {
+      allow read: if (isStaff() && belongsToAgency(resource.data.agencyId)) || isSuperAdmin();
+      allow create: if true; // Public can submit
+      allow update, delete: if (isStaff() && belongsToAgency(resource.data.agencyId)) || isSuperAdmin();
+    }
+
     match /roles/{roleId} {
       allow read: if isAuthenticated() && (belongsToAgency(resource.data.agencyId) || isSuperAdmin());
       allow create: if isAgencyAdmin() && isValidRole(request.resource.data) || isSuperAdmin();

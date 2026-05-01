@@ -27,25 +27,33 @@ import {
   Heart,
   Send,
   Sparkles,
-  Loader2
+  Loader2,
+  Trash2,
+  X
 } from 'lucide-react';
 import { SocialAccount, SocialPost, SocialPlatform, SocialMessage } from '../types';
 import { cn } from '../lib/utils';
+import { logActivity } from '../lib/security';
 import { PostCreator } from './PostCreator';
 import { SocialCalendar } from './SocialCalendar';
 import { SocialInbox } from './SocialInbox';
 
 interface SocialDashboardProps {
   agencyId: string;
+  profile?: any;
 }
 
-export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) => {
+export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, profile }) => {
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'calendar' | 'inbox' | 'accounts'>('overview');
   const [isPostCreatorOpen, setIsPostCreatorOpen] = useState(false);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [messages, setMessages] = useState<SocialMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
+  const [viewingPost, setViewingPost] = useState<SocialPost | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -128,6 +136,13 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
     fetchData();
   }, [agencyId]);
 
+  // Pagination Logic
+  const totalPages = Math.ceil(posts.length / itemsPerPage);
+  const paginatedPosts = posts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   const handleConnectAccount = async (platform: SocialPlatform) => {
     try {
       const response = await fetch(`/api/auth/${platform}/url`);
@@ -146,6 +161,28 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
       window.addEventListener('message', handleMessage);
     } catch (error) {
       console.error('Failed to connect account:', error);
+    }
+  };
+
+  const handleDeletePost = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this post?")) {
+      setPosts(prev => prev.filter(p => p.id !== id));
+      if (profile && agencyId) {
+        await logActivity(agencyId, profile.uid, profile.displayName, 'DELETE', 'Social Post', id, `Deleted social post`);
+      }
+      setSelectedPostIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const handleBulkDeletePosts = async () => {
+    if (selectedPostIds.length === 0) return;
+    if (window.confirm(`Are you sure you want to delete ${selectedPostIds.length} posts?`)) {
+      const count = selectedPostIds.length;
+      setPosts(prev => prev.filter(p => !selectedPostIds.includes(p.id)));
+      if (profile && agencyId) {
+        await logActivity(agencyId, profile.uid, profile.displayName, 'BULK_DELETE', 'Social Post', 'multiple', `Deleted ${count} social posts`);
+      }
+      setSelectedPostIds([]);
     }
   };
 
@@ -234,11 +271,59 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
               <div className="lg:col-span-2 space-y-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-black text-slate-900">Recent Activity</h3>
-                  <button className="text-sm font-bold text-indigo-600 hover:underline">View All</button>
+                  <div className="flex items-center gap-3">
+                    {selectedPostIds.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <select 
+                          onChange={(e) => {
+                            const newStatus = e.target.value;
+                            if (newStatus && window.confirm(`Update status to "${newStatus}" for ${selectedPostIds.length} posts?`)) {
+                              setPosts(prev => prev.map(p => 
+                                selectedPostIds.includes(p.id) ? { ...p, status: newStatus as any } : p
+                              ));
+                              setSelectedPostIds([]);
+                            }
+                          }}
+                          className="text-[10px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none"
+                        >
+                          <option value="">Bulk Status</option>
+                          <option value="draft">Draft</option>
+                          <option value="scheduled">Scheduled</option>
+                          <option value="published">Published</option>
+                        </select>
+                        <button 
+                          onClick={handleBulkDeletePosts}
+                          className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl text-sm font-bold hover:bg-rose-600 shadow-lg shadow-rose-100 transition-all font-mono"
+                        >
+                          <Trash2 size={16} />
+                          DELETE ({selectedPostIds.length})
+                        </button>
+                      </div>
+                    )}
+                    <button className="text-sm font-bold text-indigo-600 hover:underline">View All</button>
+                  </div>
                 </div>
                 <div className="space-y-4">
-                  {posts.map(post => (
-                    <div key={post.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                  {paginatedPosts.map(post => (
+                    <div 
+                      key={post.id} 
+                      className={cn(
+                        "bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer relative",
+                        selectedPostIds.includes(post.id) && "ring-2 ring-indigo-500 bg-indigo-50/50"
+                      )}
+                      onClick={() => {
+                        if (selectedPostIds.includes(post.id)) {
+                          setSelectedPostIds(prev => prev.filter(id => id !== post.id));
+                        } else {
+                          setSelectedPostIds(prev => [...prev, post.id]);
+                        }
+                      }}
+                    >
+                      {selectedPostIds.includes(post.id) && (
+                        <div className="absolute top-4 left-4 bg-indigo-600 text-white p-1 rounded-full shadow-lg z-10">
+                          <CheckCircle2 size={12} />
+                        </div>
+                      )}
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <div className="flex -space-x-2">
@@ -248,6 +333,7 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
                                 {p === 'instagram' && <Instagram size={14} className="text-pink-600" />}
                                 {p === 'x' && <Twitter size={14} className="text-slate-900" />}
                                 {p === 'youtube' && <Youtube size={14} className="text-red-600" />}
+                                {p === 'tiktok' && <Smartphone size={14} className="text-slate-900" />}
                               </div>
                             ))}
                           </div>
@@ -263,7 +349,26 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
                             </p>
                           </div>
                         </div>
-                        <button className="p-2 hover:bg-slate-50 rounded-xl transition-colors"><MoreVertical size={18} /></button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewingPost(post);
+                            }}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                          >
+                            <Eye size={18} />
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePost(post.id);
+                            }}
+                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-slate-700 mb-6 line-clamp-2">{post.content}</p>
                       {post.analytics && (
@@ -289,6 +394,31 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
                     </div>
                   ))}
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between bg-white px-8 py-4 rounded-[32px] border border-slate-100 shadow-sm">
+                    <div className="text-sm font-bold text-slate-500">
+                      Page {currentPage} of {totalPages}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <MoreVertical size={18} className="rotate-90" />
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <MoreVertical size={18} className="-rotate-90" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Sidebar: Connected Accounts & AI Suggestions */}
@@ -394,6 +524,85 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId }) =>
           }}
         />
       )}
+
+      {/* View Post Modal */}
+      <AnimatePresence>
+        {viewingPost && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-[32px] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-900">Post Details</h3>
+                <button onClick={() => setViewingPost(null)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className="flex -space-x-2">
+                    {viewingPost.platforms.map(p => (
+                      <div key={p} className="w-10 h-10 rounded-full bg-white border-2 border-white flex items-center justify-center shadow-md">
+                        {p === 'facebook' && <Facebook size={18} className="text-blue-600" />}
+                        {p === 'instagram' && <Instagram size={18} className="text-pink-600" />}
+                        {p === 'x' && <Twitter size={18} className="text-slate-900" />}
+                        {p === 'youtube' && <Youtube size={18} className="text-red-600" />}
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900">Scheduled for</h4>
+                    <p className="text-sm text-slate-500">{new Date(viewingPost.scheduledAt).toLocaleString()}</p>
+                  </div>
+                  <span className={cn(
+                    "ml-auto px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest",
+                    viewingPost.status === 'published' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                  )}>
+                    {viewingPost.status}
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-2xl">
+                  <p className="text-slate-700 whitespace-pre-wrap">{viewingPost.content}</p>
+                </div>
+
+                {viewingPost.analytics && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {[
+                      { label: 'Likes', value: viewingPost.analytics.likes, icon: Heart, color: 'text-rose-500' },
+                      { label: 'Comments', value: viewingPost.analytics.comments, icon: MessageSquare, color: 'text-indigo-500' },
+                      { label: 'Shares', value: viewingPost.analytics.shares, icon: Share2, color: 'text-sky-500' },
+                      { label: 'Reach', value: viewingPost.analytics.reach, icon: Eye, color: 'text-emerald-500' }
+                    ].map((stat, i) => (
+                      <div key={i} className="p-4 bg-white border border-slate-100 rounded-2xl text-center">
+                        <stat.icon size={20} className={cn("mx-auto mb-2", stat.color)} />
+                        <p className="text-lg font-black text-slate-900">{stat.value.toLocaleString()}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <button 
+                  onClick={() => setViewingPost(null)}
+                  className="px-6 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
+                >
+                  Close
+                </button>
+                <button 
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all"
+                >
+                  Edit Post
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

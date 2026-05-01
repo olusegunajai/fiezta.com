@@ -4,11 +4,14 @@ export interface WPPost {
   title: string;
   content: string;
   excerpt: string;
+  slug?: string;
   date: string;
   status: 'publish' | 'draft';
   author?: string;
+  authorName?: string;
   featuredImage?: string;
   link?: string;
+  createdAt?: string;
 }
 
 export interface Page {
@@ -263,8 +266,10 @@ export interface Accommodation {
   name: string;
   location: string;
   stars: number;
+  rating?: number;
   pricePerNight: number;
   amenities: string[];
+  description?: string;
   images: string[];
   imageUrl?: string;
 }
@@ -281,6 +286,7 @@ export interface Transport {
   price: number;
   imageUrl?: string;
   model?: string;
+  vehicleName?: string;
   capacity?: number;
 }
 
