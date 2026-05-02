@@ -489,7 +489,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId, profile })
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
           Array(3).fill(0).map((_, i) => (
-            <div key={i} className="h-64 bg-slate-100 rounded-[32px] animate-pulse" />
+            <div key={`skeleton-${i}`} className="h-64 bg-slate-100 rounded-[32px] animate-pulse" />
           ))
         ) : paginatedThemes.map((theme) => (
           <motion.div 
@@ -552,7 +552,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId, profile })
             <div className="space-y-4 mb-8">
               <div className="flex gap-2">
                 {[theme.config.primaryColor, theme.config.secondaryColor, theme.config.accentColor, theme.config.backgroundColor].map((color, i) => (
-                  <div key={i} className="w-8 h-8 rounded-full border border-slate-100 shadow-sm" style={{ backgroundColor: color }} />
+                  <div key={`${color}-${i}`} className="w-8 h-8 rounded-full border border-slate-100 shadow-sm" style={{ backgroundColor: color }} />
                 ))}
               </div>
               <p className="text-sm text-slate-500 line-clamp-2">{theme.description || 'No description provided.'}</p>
@@ -761,7 +761,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ agencyId, profile })
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {[1, 2].map(i => (
-                        <div key={i} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50" style={{ borderColor: `${viewingTheme.config.textColor}10` }}>
+                        <div key={`detail-${i}`} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50" style={{ borderColor: `${viewingTheme.config.textColor}10` }}>
                           <h3 className="font-bold text-lg mb-2">Premium Detail {i}</h3>
                           <p className="text-sm opacity-60">Demonstrating how your theme handles card layouts and typography.</p>
                         </div>

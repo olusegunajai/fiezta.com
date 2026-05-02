@@ -37,6 +37,18 @@ import { logActivity } from '../lib/security';
 import { PostCreator } from './PostCreator';
 import { SocialCalendar } from './SocialCalendar';
 import { SocialInbox } from './SocialInbox';
+import { db } from '../firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  doc, 
+  deleteDoc, 
+  updateDoc,
+  writeBatch
+} from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 interface SocialDashboardProps {
   agencyId: string;
@@ -56,84 +68,23 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
   const [itemsPerPage] = useState(5);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/social/scheduled');
-        const scheduledPosts = await response.json();
+    // Fetch Accounts
+    const accountsQuery = query(collection(db, 'social_accounts'), where('agencyId', '==', agencyId));
+    const unsubscribeAccounts = onSnapshot(accountsQuery, (snapshot) => {
+      setAccounts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialAccount)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'social_accounts'));
 
-        const mockAccounts: SocialAccount[] = [
-          {
-            id: '1',
-            agencyId,
-            platform: 'facebook',
-            accountName: 'Fiezta Luxury Travel',
-            accountId: 'fb_123',
-            accessToken: 'encrypted_token',
-            status: 'active',
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: '2',
-            agencyId,
-            platform: 'instagram',
-            accountName: '@fiezta_travel',
-            accountId: 'ig_456',
-            accessToken: 'encrypted_token',
-            status: 'active',
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: '3',
-            agencyId,
-            platform: 'x',
-            accountName: '@FieztaTravel',
-            accountId: 'x_789',
-            accessToken: 'encrypted_token',
-            status: 'active',
-            createdAt: new Date().toISOString()
-          }
-        ];
+    // Fetch Posts
+    const postsQuery = query(collection(db, 'social_posts'), where('agencyId', '==', agencyId));
+    const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
+      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialPost)));
+      setIsLoading(false);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'social_posts'));
 
-        const mockPosts: SocialPost[] = [
-          {
-            id: 'p1',
-            agencyId,
-            accountId: '1',
-            content: 'Discover the hidden gems of Santorini this summer! 🇬🇷 #Travel #Santorini #Luxury',
-            platforms: ['facebook', 'instagram'],
-            type: 'post',
-            scheduledAt: new Date(Date.now() + 86400000).toISOString(),
-            status: 'scheduled',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          },
-          {
-            id: 'p2',
-            agencyId,
-            accountId: '2',
-            content: 'Our latest vlog from Bali is live! Check out the link in bio. 🌴',
-            platforms: ['youtube', 'instagram'],
-            type: 'reel',
-            scheduledAt: new Date(Date.now() - 3600000).toISOString(),
-            status: 'published',
-            analytics: { likes: 1240, shares: 85, comments: 42, reach: 15000, impressions: 22000 },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          },
-          ...scheduledPosts
-        ];
-
-        setAccounts(mockAccounts);
-        setPosts(mockPosts);
-      } catch (error) {
-        console.error('Failed to fetch social data:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    return () => {
+      unsubscribeAccounts();
+      unsubscribePosts();
     };
-
-    fetchData();
   }, [agencyId]);
 
   // Pagination Logic
@@ -166,25 +117,57 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
 
   const handleDeletePost = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this post?")) {
-      setPosts(prev => prev.filter(p => p.id !== id));
-      if (profile && agencyId) {
-        await logActivity(agencyId, profile.uid, profile.displayName, 'DELETE', 'Social Post', id, `Deleted social post`);
+      try {
+        await deleteDoc(doc(db, 'social_posts', id));
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'DELETE', 'Social Post', id, `Deleted social post`);
+        }
+        setSelectedPostIds(prev => prev.filter(i => i !== id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `social_posts/${id}`);
       }
-      setSelectedPostIds(prev => prev.filter(i => i !== id));
     }
   };
 
   const handleBulkDeletePosts = async () => {
     if (selectedPostIds.length === 0) return;
     if (window.confirm(`Are you sure you want to delete ${selectedPostIds.length} posts?`)) {
-      const count = selectedPostIds.length;
-      setPosts(prev => prev.filter(p => !selectedPostIds.includes(p.id)));
-      if (profile && agencyId) {
-        await logActivity(agencyId, profile.uid, profile.displayName, 'BULK_DELETE', 'Social Post', 'multiple', `Deleted ${count} social posts`);
+      try {
+        const batch = writeBatch(db);
+        selectedPostIds.forEach(id => {
+          batch.delete(doc(db, 'social_posts', id));
+        });
+        await batch.commit();
+
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'BULK_DELETE', 'Social Post', 'multiple', `Deleted ${selectedPostIds.length} social posts`);
+        }
+        setSelectedPostIds([]);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'social_posts');
       }
-      setSelectedPostIds([]);
     }
   };
+
+  const handleBulkStatusUpdate = async (newStatus: string) => {
+    if (selectedPostIds.length === 0) return;
+    if (window.confirm(`Update status to "${newStatus}" for ${selectedPostIds.length} posts?`)) {
+      try {
+        const batch = writeBatch(db);
+        selectedPostIds.forEach(id => {
+          batch.update(doc(db, 'social_posts', id), { status: newStatus as any, updatedAt: new Date().toISOString() });
+        });
+        await batch.commit();
+
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'BULK_UPDATE', 'Social Post', 'multiple', `Updated status to ${newStatus} for ${selectedPostIds.length} posts`);
+        }
+        setSelectedPostIds([]);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, 'social_posts');
+      }
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -219,9 +202,9 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
           { id: 'calendar', label: 'Calendar', icon: Calendar },
           { id: 'inbox', label: 'Inbox', icon: MessageSquare },
           { id: 'accounts', label: 'Accounts', icon: Globe }
-        ].map((tab) => (
+        ].map((tab, idx) => (
           <button
-            key={tab.id}
+            key={`${tab.id}-${idx}`}
             onClick={() => setActiveSubTab(tab.id as any)}
             className={cn(
               "flex items-center gap-2 px-4 sm:px-6 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
@@ -253,7 +236,7 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
                 { label: 'Followers', value: '42.1K', change: '+2.1%', icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
                 { label: 'Growth', value: '14.2%', change: '+0.8%', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' }
               ].map((stat, i) => (
-                <div key={i} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
+                <div key={`${stat.label}-${i}`} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
                   <div className="flex items-center justify-between mb-4">
                     <div className={cn("p-3 rounded-2xl", stat.bg, stat.color)}>
                       <stat.icon size={24} />
@@ -275,15 +258,7 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
                     {selectedPostIds.length > 0 && (
                       <div className="flex items-center gap-2">
                         <select 
-                          onChange={(e) => {
-                            const newStatus = e.target.value;
-                            if (newStatus && window.confirm(`Update status to "${newStatus}" for ${selectedPostIds.length} posts?`)) {
-                              setPosts(prev => prev.map(p => 
-                                selectedPostIds.includes(p.id) ? { ...p, status: newStatus as any } : p
-                              ));
-                              setSelectedPostIds([]);
-                            }
-                          }}
+                          onChange={(e) => handleBulkStatusUpdate(e.target.value)}
                           className="text-[10px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none"
                         >
                           <option value="">Bulk Status</option>
@@ -327,8 +302,8 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <div className="flex -space-x-2">
-                            {post.platforms.map(p => (
-                              <div key={p} className="w-8 h-8 rounded-full bg-white border-2 border-white flex items-center justify-center shadow-sm">
+                            {post.platforms.map((p, platIdx) => (
+                              <div key={`${p}-${platIdx}`} className="w-8 h-8 rounded-full bg-white border-2 border-white flex items-center justify-center shadow-sm">
                                 {p === 'facebook' && <Facebook size={14} className="text-blue-600" />}
                                 {p === 'instagram' && <Instagram size={14} className="text-pink-600" />}
                                 {p === 'x' && <Twitter size={14} className="text-slate-900" />}
@@ -483,10 +458,10 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
               { id: 'youtube', name: 'YouTube', icon: Youtube, color: 'text-red-600', bg: 'bg-red-50' },
               { id: 'x', name: 'X (Twitter)', icon: Twitter, color: 'text-slate-900', bg: 'bg-slate-100' },
               { id: 'threads', name: 'Threads', icon: MessageSquare, color: 'text-slate-900', bg: 'bg-slate-100' }
-            ].map((platform) => {
+            ].map((platform, platIdx) => {
               const isConnected = accounts.some(a => a.platform === platform.id);
               return (
-                <div key={platform.id} className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col items-center text-center">
+                <div key={`${platform.id}-${platIdx}`} className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col items-center text-center">
                   <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center mb-6", platform.bg, platform.color)}>
                     <platform.icon size={32} />
                   </div>
@@ -544,8 +519,8 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
               <div className="p-8 space-y-6">
                 <div className="flex items-center gap-4">
                   <div className="flex -space-x-2">
-                    {viewingPost.platforms.map(p => (
-                      <div key={p} className="w-10 h-10 rounded-full bg-white border-2 border-white flex items-center justify-center shadow-md">
+                    {viewingPost.platforms.map((p, pIdx) => (
+                      <div key={`${p}-${pIdx}`} className="w-10 h-10 rounded-full bg-white border-2 border-white flex items-center justify-center shadow-md">
                         {p === 'facebook' && <Facebook size={18} className="text-blue-600" />}
                         {p === 'instagram' && <Instagram size={18} className="text-pink-600" />}
                         {p === 'x' && <Twitter size={18} className="text-slate-900" />}
@@ -577,7 +552,7 @@ export const SocialDashboard: React.FC<SocialDashboardProps> = ({ agencyId, prof
                       { label: 'Shares', value: viewingPost.analytics.shares, icon: Share2, color: 'text-sky-500' },
                       { label: 'Reach', value: viewingPost.analytics.reach, icon: Eye, color: 'text-emerald-500' }
                     ].map((stat, i) => (
-                      <div key={i} className="p-4 bg-white border border-slate-100 rounded-2xl text-center">
+                      <div key={`${stat.label}-${i}`} className="p-4 bg-white border border-slate-100 rounded-2xl text-center">
                         <stat.icon size={20} className={cn("mx-auto mb-2", stat.color)} />
                         <p className="text-lg font-black text-slate-900">{stat.value.toLocaleString()}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>

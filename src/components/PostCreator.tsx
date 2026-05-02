@@ -38,6 +38,9 @@ import {
 import { SocialAccount, SocialPost, SocialPlatform, TravelPackage } from '../types';
 import { cn } from '../lib/utils';
 import { GoogleGenAI } from "@google/genai";
+import { db } from '../firebase';
+import { collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 interface PostCreatorProps {
   agencyId: string;
@@ -59,11 +62,11 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ agencyId, accounts, on
 
   useEffect(() => {
     // Fetch packages for linking
-    // Mock for now
-    setPackages([
-      { id: 'pkg1', agencyId, title: 'Santorini Escape', description: '7 days in Greece', destinations: ['Santorini'], duration: 7, price: 1200, image: 'https://picsum.photos/seed/santorini/800/600', status: 'active', inclusions: [], exclusions: [], itinerary: [] },
-      { id: 'pkg2', agencyId, title: 'Bali Adventure', description: '10 days in Indonesia', destinations: ['Bali'], duration: 10, price: 1500, image: 'https://picsum.photos/seed/bali/800/600', status: 'active', inclusions: [], exclusions: [], itinerary: [] }
-    ]);
+    const q = query(collection(db, 'packages'), where('agencyId', '==', agencyId));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPackages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TravelPackage)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'packages'));
+    return () => unsubscribe();
   }, [agencyId]);
 
   const handleGenerateAI = async () => {
@@ -100,22 +103,17 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ agencyId, accounts, on
         mediaUrls,
         status: 'scheduled',
         type: 'post',
-        packageId: linkedPackage?.id,
+        packageId: linkedPackage?.id || null,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        analytics: { likes: 0, shares: 0, comments: 0, reach: 0, impressions: 0 }
       };
 
-      const response = await fetch('/api/social/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(postData)
-      });
-
-      if (response.ok) {
-        onSuccess();
-      }
+      await addDoc(collection(db, 'social_posts'), postData);
+      onSuccess();
     } catch (error) {
       console.error('Failed to schedule post:', error);
+      handleFirestoreError(error, OperationType.CREATE, 'social_posts');
     } finally {
       setIsSubmitting(false);
     }
@@ -150,9 +148,9 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ agencyId, accounts, on
                     { id: 'instagram', icon: Instagram, color: 'text-pink-600', bg: 'bg-pink-50' },
                     { id: 'x', icon: Twitter, color: 'text-slate-900', bg: 'bg-slate-100' },
                     { id: 'youtube', icon: Youtube, color: 'text-red-600', bg: 'bg-red-50' }
-                  ].map(p => (
+                  ].map((p, idx) => (
                     <button
-                      key={p.id}
+                      key={`${p.id}-${idx}`}
                       onClick={() => setSelectedPlatforms(prev => 
                         prev.includes(p.id as SocialPlatform) 
                           ? prev.filter(x => x !== p.id) 
@@ -222,8 +220,8 @@ export const PostCreator: React.FC<PostCreatorProps> = ({ agencyId, accounts, on
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   >
                     <option value="">None</option>
-                    {packages.map(p => (
-                      <option key={p.id} value={p.id}>{p.title}</option>
+                    {packages.map((p, idx) => (
+                      <option key={`${p.id}-${idx}`} value={p.id}>{p.title}</option>
                     ))}
                   </select>
                 </div>

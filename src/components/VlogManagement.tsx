@@ -506,8 +506,8 @@ export const VlogManagement: React.FC<VlogManagementProps> = ({ agencyId, profil
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-black text-slate-900 tracking-tight">Vlog Description</h3>
                     <div className="flex flex-wrap gap-2">
-                      {viewingVlog.tags.map(tag => (
-                        <span key={tag} className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase">#{tag}</span>
+                      {viewingVlog.tags.map((tag, idx) => (
+                        <span key={`${tag}-${idx}`} className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase">#{tag}</span>
                       ))}
                     </div>
                   </div>
@@ -661,9 +661,9 @@ export const VlogManagement: React.FC<VlogManagementProps> = ({ agencyId, profil
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Status</label>
                     <div className="flex gap-4">
-                      {['draft', 'published'].map((s) => (
+                      {['draft', 'published'].map((s, sIdx) => (
                         <button
-                          key={s}
+                          key={`${s}-${sIdx}`}
                           type="button"
                           onClick={() => setFormData({...formData, status: s as any})}
                           className={cn(

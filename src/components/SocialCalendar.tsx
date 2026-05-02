@@ -55,8 +55,8 @@ export const SocialCalendar: React.FC<SocialCalendarProps> = ({ posts }) => {
 
       <div className="overflow-x-auto custom-scrollbar -mx-4 sm:mx-0 px-4 sm:px-0">
         <div className="grid grid-cols-7 gap-px bg-slate-100 border border-slate-100 rounded-2xl sm:rounded-3xl overflow-hidden min-w-[700px]">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="bg-slate-50 p-4 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">{day}</div>
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
+          <div key={`${day}-${idx}`} className="bg-slate-50 p-4 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">{day}</div>
         ))}
         
         {Array.from({ length: firstDayOfMonth }).map((_, i) => (
@@ -80,8 +80,8 @@ export const SocialCalendar: React.FC<SocialCalendarProps> = ({ posts }) => {
                 {dayPosts.map(post => (
                   <div key={post.id} className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-2 group/post">
                     <div className="flex -space-x-1">
-                      {post.platforms.map(p => (
-                        <div key={p} className="w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-sm">
+                      {post.platforms.map((p, platIdx) => (
+                        <div key={`${p}-${platIdx}`} className="w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-sm">
                           {p === 'facebook' && <Facebook size={8} className="text-blue-600" />}
                           {p === 'instagram' && <Instagram size={8} className="text-pink-600" />}
                           {p === 'x' && <Twitter size={8} className="text-slate-900" />}

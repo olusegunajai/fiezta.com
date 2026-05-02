@@ -71,9 +71,9 @@ export const PageBuilder: React.FC<PageBuilderProps> = ({ value = [], onChange }
           { type: 'video', icon: Video, label: 'Video' },
           { type: 'faq', icon: HelpCircle, label: 'FAQ' },
           { type: 'cta', icon: Megaphone, label: 'CTA' }
-        ].map(btn => (
+        ].map((btn, idx) => (
           <button 
-            key={btn.type}
+            key={`${btn.type}-${idx}`}
             onClick={() => addBlock(btn.type as any)}
             className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-600 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-all shadow-sm"
           >
@@ -109,8 +109,8 @@ export const PageBuilder: React.FC<PageBuilderProps> = ({ value = [], onChange }
 
             {editingBlockId === block.id && (
               <div className="p-6 border-t border-slate-50 grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Object.keys(block.data).map(key => (
-                  <div key={key} className="space-y-2">
+                {Object.keys(block.data).map((key, idx) => (
+                  <div key={`${key}-${idx}`} className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{key}</label>
                     {key === 'html' || key === 'description' ? (
                       <textarea 

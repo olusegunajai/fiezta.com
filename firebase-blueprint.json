@@ -272,6 +272,87 @@
         "imageUrl": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "draft"] }
       }
+    },
+    "Accommodation": {
+      "title": "Accommodation",
+      "description": "Hotel or stay option.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "location": { "type": "string" },
+        "pricePerNight": { "type": "number" }
+      }
+    },
+    "Transport": {
+      "title": "Transport",
+      "description": "Car, flight, or boat option.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "provider": { "type": "string" },
+        "type": { "type": "string" },
+        "model": { "type": "string" },
+        "price": { "type": "number" }
+      }
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Financial document for a booking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "amount": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["unpaid", "paid", "overdue"] }
+      }
+    },
+    "TravelDocument": {
+      "title": "Travel Document",
+      "description": "Visa, passport, or tickets.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "fileUrl": { "type": "string" }
+      }
+    },
+    "Itinerary": {
+      "title": "Itinerary",
+      "description": "Personalized travel plan.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "CalendarEvent": {
+      "title": "Calendar Event",
+      "description": "An event in the agency calendar.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "title": { "type": "string" },
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["booking", "staff_schedule", "meeting", "other"] },
+        "color": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -291,6 +372,12 @@
     "/faqs/{id}": { "schema": "FAQ", "description": "FAQs." },
     "/pages/{id}": { "schema": "Page", "description": "CMS Pages." },
     "/menus/{id}": { "schema": "Menu", "description": "Menus." },
-    "/inventions/{id}": { "schema": "Invention", "description": "Inventions." }
+    "/inventions/{id}": { "schema": "Invention", "description": "Inventions." },
+    "/accommodations/{id}": { "schema": "Accommodation", "description": "Accommodations." },
+    "/transport/{id}": { "schema": "Transport", "description": "Transports." },
+    "/invoices/{id}": { "schema": "Invoice", "description": "Invoices." },
+    "/documents/{id}": { "schema": "TravelDocument", "description": "Travel documents." },
+    "/itineraries/{id}": { "schema": "Itinerary", "description": "Itineraries." },
+    "/calendar_events/{id}": { "schema": "CalendarEvent", "description": "Calendar events." }
   }
 }

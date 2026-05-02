@@ -56,6 +56,7 @@ import { exportToCSV, exportToPDF } from './lib/export';
 import { SocialDashboard } from './components/SocialDashboard';
 import { RoleManager } from './components/RoleManager';
 import { GenericCRUD } from './components/GenericCRUD';
+import { GoogleGenAI } from "@google/genai";
 import { 
   LayoutDashboard, 
   Globe, 
@@ -89,7 +90,6 @@ import {
   CheckSquare,
   ShieldCheck,
   Shield,
-  PieChart,
   Home,
   Bell,
   CheckCheck,
@@ -148,12 +148,16 @@ import {
   Tooltip, 
   ResponsiveContainer,
   AreaChart,
-  Area
+  Area,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import { generateItinerary, getTravelAdvice, generateText } from './services/geminiService';
 import { BookingWizard } from './components/BookingWizard';
 import { VlogManagement } from './components/VlogManagement';
 import { ThemeManager } from './components/ThemeManager';
+import { DatabaseMaintenance } from './components/DatabaseMaintenance';
 import { AIItineraryBuilder } from './components/AIItineraryBuilder';
 import { InteractiveMap } from './components/InteractiveMap';
 
@@ -318,6 +322,21 @@ const popupCampaignFields = [
   { name: 'isActive', label: 'Is Active', type: 'boolean', defaultValue: true },
 ];
 
+const couponFields = [
+  { name: 'code', label: 'Coupon Code', type: 'text', required: true },
+  { name: 'discountType', label: 'Discount Type', type: 'select', options: ['percentage', 'fixed'] },
+  { name: 'discountValue', label: 'Discount Value', type: 'number', required: true },
+  { name: 'expiryDate', label: 'Expiry Date', type: 'date', required: true },
+  { name: 'isActive', label: 'Is Active', type: 'boolean', defaultValue: true },
+];
+
+const cmsFields = [
+  { name: 'title', label: 'Title', type: 'text', required: true },
+  { name: 'slug', label: 'Slug', type: 'text', required: true },
+  { name: 'content', label: 'Content (HTML)', type: 'html' },
+  { name: 'status', label: 'Status', type: 'select', options: ['publish', 'draft'] },
+];
+
 const FieztaLogo = ({ className }: { className?: string }) => (
   <div className={cn("relative flex items-center justify-center rounded-full overflow-hidden", className)}>
     <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -393,7 +412,7 @@ const ReviewCard = ({ review }: { review: any }) => (
   <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all">
     <div className="flex gap-1 mb-4">
       {[...Array(5)].map((_, i) => (
-        <Sparkles key={i} size={16} className={cn(i < review.rating ? "text-[#D4AF37] fill-[#D4AF37]" : "text-slate-200")} />
+        <Sparkles key={`star-${i}`} size={16} className={cn(i < review.rating ? "text-[#D4AF37] fill-[#D4AF37]" : "text-slate-200")} />
       ))}
     </div>
     <p className="text-slate-600 italic mb-6 leading-relaxed">"{review.content}"</p>
@@ -454,7 +473,7 @@ export default function App() {
 
   const addNotification = (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newNotify = {
-      id: Date.now(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       title,
       message,
       type,
@@ -462,7 +481,6 @@ export default function App() {
       read: false
     };
     setNotifications(prev => [newNotify, ...prev]);
-    // Also trigger a toast or alert if needed
   };
   const [activePageBlocks, setActivePageBlocks] = useState<any[]>([]);
 
@@ -574,6 +592,7 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<{ id: string, role: 'user' | 'ai', text: string }[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isGeneratingItinerary, setIsGeneratingItinerary] = useState(false);
   
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   const [selectedSubscriberIds, setSelectedSubscriberIds] = useState<string[]>([]);
@@ -705,28 +724,39 @@ export default function App() {
                     <Sparkles size={20} className="text-[#D4AF37]" />
                     Itinerary
                   </h3>
-                  {bookingItinerary ? (
-                    <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-                      <div className="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
-                        <span className="text-sm font-bold text-[#D4AF37]">Personalized Travel Plan</span>
-                        <span className="text-[10px] bg-[#D4AF37] text-white px-2 py-0.5 rounded-full uppercase font-bold">AI Generated</span>
-                      </div>
-                      <div className="p-6 prose prose-slate prose-sm max-w-none">
-                        <div className="whitespace-pre-wrap text-slate-600 leading-relaxed">
-                          {bookingItinerary.content}
+                      {bookingItinerary ? (
+                        <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                          <div className="p-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+                            <span className="text-sm font-bold text-[#D4AF37]">Personalized Travel Plan</span>
+                            <span className="text-[10px] bg-[#D4AF37] text-white px-2 py-0.5 rounded-full uppercase font-bold">AI Generated</span>
+                          </div>
+                          <div className="p-6 prose prose-slate prose-sm max-w-none">
+                            <div className="whitespace-pre-wrap text-slate-600 leading-relaxed font-sans">
+                              {bookingItinerary.content}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      <p className="text-slate-400 text-sm">No itinerary has been generated for this booking yet.</p>
-                      {profile?.role === 'admin' && (
-                        <button className="mt-4 px-4 py-2 bg-[#D4AF37] text-white rounded-xl font-bold text-sm hover:bg-[#B8962E] transition-all">
-                          Generate Itinerary
-                        </button>
+                      ) : (
+                        <div className="p-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          <p className="text-slate-400 text-sm">No itinerary has been generated for this booking yet.</p>
+                          {isGeneratingItinerary ? (
+                            <div className="mt-4 flex flex-col items-center gap-3">
+                              <Loader2 className="animate-spin text-[#D4AF37]" size={24} />
+                              <p className="text-xs font-bold text-slate-400 animate-pulse">Our AI is crafting your dream journey...</p>
+                            </div>
+                          ) : (
+                            (profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'agent') && (
+                              <button 
+                                onClick={() => handleGenerateItinerary(selectedBookingDetail)}
+                                className="mt-4 px-4 py-2 bg-[#D4AF37] text-white rounded-xl font-bold text-sm hover:bg-[#B8962E] transition-all flex items-center gap-2 mx-auto"
+                              >
+                                <Sparkles size={16} />
+                                Generate Itinerary
+                              </button>
+                            )
+                          )}
+                        </div>
                       )}
-                    </div>
-                  )}
                 </section>
               </div>
 
@@ -740,9 +770,9 @@ export default function App() {
                     </div>
                     <div className="space-y-2">
                       <p className="text-xs font-bold text-slate-400 uppercase mb-2">Update Status</p>
-                      {(['pending', 'confirmed', 'completed', 'cancelled'] as BookingStatus[]).map((status) => (
+                      {(['pending', 'confirmed', 'completed', 'cancelled'] as BookingStatus[]).map((status, sIdx) => (
                         <button
-                          key={status}
+                          key={`${status}-${sIdx}`}
                           onClick={() => handleUpdateBookingStatus(selectedBookingDetail.id, status)}
                           className={cn(
                             "w-full text-left px-4 py-2 rounded-xl text-sm font-bold transition-all capitalize",
@@ -884,8 +914,8 @@ export default function App() {
               <div>
                 <h4 className="text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">Amenities</h4>
                 <div className="flex flex-wrap gap-2">
-                  {viewingAccommodation.amenities?.map((amenity: string) => (
-                    <span key={amenity} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                  {viewingAccommodation.amenities?.map((amenity: string, aIdx: number) => (
+                    <span key={`${amenity}-${aIdx}`} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-widest">
                       {amenity}
                     </span>
                   ))}
@@ -962,8 +992,8 @@ export default function App() {
               <div>
                 <h4 className="text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">Included Features</h4>
                 <div className="flex flex-wrap gap-2">
-                  {['WiFi', 'Air Conditioning', 'Refreshments', 'Insurance'].map((tag) => (
-                    <span key={tag} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                  {['WiFi', 'Air Conditioning', 'Refreshments', 'Insurance'].map((tag, tIdx) => (
+                    <span key={`${tag}-${tIdx}`} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-widest">
                       {tag}
                     </span>
                   ))}
@@ -1491,6 +1521,56 @@ export default function App() {
     }
   };
 
+  const handleGenerateItinerary = async (booking: Booking) => {
+    if (!process.env.GEMINI_API_KEY) {
+      handleFirestoreError(new Error('GEMINI_API_KEY is not defined'), OperationType.WRITE, 'itineraries');
+      return;
+    }
+    
+    setIsGeneratingItinerary(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Generate a detailed day-by-day travel itinerary for a booking with the following details:
+      Package: ${booking.packageName}
+      Travel Date: ${booking.travelDate}
+      Client: ${booking.clientName}
+      Agency: Fiezta Travel
+      
+      Please include:
+      - Daily activities and recommendations
+      - Local hidden gems and food suggestions
+      - Travel tips for the destination
+      
+      Format the output in clean Markdown with professional headers.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+      });
+
+      const content = response.text;
+      if (content) {
+        const newItinerary = {
+          agencyId: booking.agencyId,
+          bookingId: booking.id,
+          clientId: booking.clientId,
+          content,
+          createdAt: new Date().toISOString()
+        };
+        const docRef = await addDoc(collection(db, 'itineraries'), newItinerary);
+        setBookingItinerary({ id: docRef.id, ...newItinerary });
+        
+        if (profile && agencyId) {
+          await logActivity(agencyId, profile.uid, profile.displayName, 'CREATE', 'Itinerary', docRef.id, `Generated AI itinerary for booking ${booking.id}`);
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'itineraries');
+    } finally {
+      setIsGeneratingItinerary(false);
+    }
+  };
+
   const handleAiChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -1510,6 +1590,36 @@ export default function App() {
     } finally {
       setIsAiLoading(false);
     }
+  };
+
+  const getMonthlyRevenue = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthIndex = d.getMonth();
+      const year = d.getFullYear();
+      const monthName = months[monthIndex];
+      const revenue = bookings
+        .filter(b => {
+          const bDate = new Date(b.createdAt);
+          return bDate.getMonth() === monthIndex && bDate.getFullYear() === year;
+        })
+        .reduce((acc, b) => acc + (b.paidAmount || 0), 0);
+      result.push({ name: monthName, value: revenue });
+    }
+    return result;
+  };
+
+  const getBookingStatusStats = () => {
+    const stats: Record<string, number> = {
+      pending: bookings.filter(b => b.status === 'pending').length,
+      confirmed: bookings.filter(b => b.status === 'confirmed').length,
+      cancelled: bookings.filter(b => b.status === 'cancelled').length,
+      completed: bookings.filter(b => b.status === 'completed').length,
+    };
+    return Object.entries(stats).map(([name, value]) => ({ name, value }));
   };
 
   const handleFirestoreDelete = async (collectionName: string, id: string, entityName: string) => {
@@ -1571,9 +1681,8 @@ export default function App() {
                 { label: 'Entertainment', url: '/entertainment', order: 3 },
                 { label: 'Rentals', url: '/rentals', order: 4 },
                 { label: 'Vlog', url: '/vlog', order: 5 },
-                { label: 'News', url: '#news', order: 6 },
-                { label: 'Inventions', url: '/inventions', order: 7 },
-                { label: 'Contact', url: '#contact', order: 8 }
+                { label: 'Inventions', url: '/inventions', order: 6 },
+                { label: 'Contact', url: '#contact', order: 7 }
               ],
               createdAt: new Date().toISOString()
             },
@@ -1587,7 +1696,7 @@ export default function App() {
                 { label: 'Travel', url: '/travel', order: 2 },
                 { label: 'Entertainment', url: '/entertainment', order: 3 },
                 { label: 'Rentals', url: '/rentals', order: 4 },
-                { label: 'News', url: '#news', order: 5 },
+                { label: 'Vlog', url: '/vlog', order: 5 },
                 { label: 'Inventions', url: '/inventions', order: 6 }
               ],
               createdAt: new Date().toISOString()
@@ -1732,47 +1841,44 @@ export default function App() {
           const initialPages = [
             {
               agencyId: profile.agencyId,
-              title: 'Exclusive Travel',
+              title: 'Travel with Fiezta',
               slug: 'travel',
               status: 'publish',
               blocks: [
-                { id: '1', type: 'hero', data: { title: 'Seamless Travel', description: 'Elite accommodation research and arrangement within DC, Maryland, and Virginia.', tagline: 'LUXURY CONCIERGE', buttonLabel: 'Explore Packages' } },
-                { id: '2', type: 'grid', data: { title: 'Travel Services', subtitle: 'Global support for discerning travelers.', columns: 3, items: [
-                  { title: 'Airport Pick-ups', description: 'Seamless transitions from the moment you land.' },
-                  { title: 'Visa Processing', description: 'Handling the paperwork while you plan the fun.' },
-                  { title: 'Sightseeing', description: 'Curated tours of the DMV area and beyond.' }
+                { id: '1', type: 'hero', data: { title: 'Travel with Fiezta', description: 'Travel Request Form (for athletes, artists, maternity tourism and medical tourism only)', tagline: 'FIEZTA CONCIERGE ON WHEELS', buttonLabel: 'Fill Request Form', buttonAction: '#contact' } },
+                { id: '2', type: 'grid', data: { title: 'Travel Locations', subtitle: 'Your Dream Location', columns: 4, items: [
+                  { title: 'Dubai', description: 'Experience the luxury and innovation of the desert gem.' },
+                  { title: 'United States', description: 'From DC to the West Coast, explore the land of opportunity.' },
+                  { title: 'Italy', description: 'Indulge in history, art, and the finest cuisine.' },
+                  { title: 'France', description: 'Romantic getaways and cultural deep dives.' }
                 ] } },
-                { id: '3', type: 'cta', data: { title: 'Ready to Fly?', description: 'Contact our travel concierge today.', buttonLabel: 'Contact Us', buttonAction: '#contact' } }
+                { id: '3', type: 'grid', data: { title: 'Our Benefits', subtitle: 'Why travel with Fiezta Concierge', columns: 3, items: [
+                  { title: 'Concierge Services', description: 'Full-service support throughout your journey.' },
+                  { title: 'Accommodation', description: 'Elite research and booking of premium stays.' },
+                  { title: 'Personalized Itineraries', description: 'Tailor-made plans that suit your specific needs.' },
+                  { title: 'Activity Planning', description: 'Exclusive access to tours and experiences.' },
+                  { title: 'Visa Assistance', description: 'Handling the complexities of travel documentation.' },
+                  { title: 'Language Support', description: 'Seamless communication wherever you go.' }
+                ] } },
+                { id: '4', type: 'cta', data: { title: 'Work with us today', description: 'Contact us to start talking about traveling with us, we cannot wait to have you.', buttonLabel: 'Get Started', buttonAction: 'mailto:info@fiezta.com' } }
               ]
             },
             {
               agencyId: profile.agencyId,
-              title: 'Elite Entertainment',
+              title: 'Fiezta Entertainment',
               slug: 'entertainment',
               status: 'publish',
               blocks: [
-                { id: '1', type: 'hero', data: { title: 'Elite Entertainment', description: 'World-class musical entertainment for your luxury events and parties.', tagline: 'LIVE MUSIC', buttonLabel: 'Book a Band' } },
-                { id: '2', type: 'video', data: { title: 'Performance Highlights', duration: '3:45', thumbnail: 'https://images.unsplash.com/photo-1514525253361-bee047320bca?auto=format&fit=crop&q=80' } },
-                { id: '3', type: 'grid', data: { title: 'Our Talent', subtitle: 'A roster of world-class performers.', columns: 3, items: [
-                  { title: 'Jazz Bands', description: 'Sophisticated sounds for your corporate mixer.' },
-                  { title: 'DJs & Producers', description: 'High-energy beats for exclusive celebrations.' },
-                  { title: 'Soloists', description: 'Elegant string or piano accompaniment.' }
-                ] } }
-              ]
-            },
-            {
-              agencyId: profile.agencyId,
-              title: 'Luxury Rentals',
-              slug: 'rentals',
-              status: 'publish',
-              blocks: [
-                { id: '1', type: 'hero', data: { title: 'Pristine Rentals', description: 'High-quality saxophones, pianos, and sound equipment for rent.', tagline: 'EQUIPMENT & MORE', buttonLabel: 'View Catalog' } },
-                { id: '2', type: 'grid', data: { title: 'Rental Category', subtitle: 'Everything you need for the perfect sound.', columns: 4, items: [
-                  { title: 'Saxophones', description: 'Professional grade instruments.' },
-                  { title: 'Grand Pianos', description: 'Stunning centerpieces for any room.' },
-                  { title: 'Sound Systems', description: 'Crystal clear audio for ceremonies.' },
-                  { title: 'Luxury Transport', description: 'Travel in style across the DMV.' }
-                ] } }
+                { id: '1', type: 'hero', data: { title: 'Fiezta Entertainment', description: 'Fiezta Live Band and world-class musical entertainment for your luxury events.', tagline: 'ELITE PERFORMANCE', buttonLabel: 'Book a Band', buttonAction: '#contact' } },
+                { id: '2', type: 'grid', data: { title: 'Entertainment Benefits', subtitle: 'Elevate your event experience', columns: 3, items: [
+                  { title: 'Private Show Bookings', description: 'Exclusive performances for your private gatherings.' },
+                  { title: 'Event Recommendations', description: 'Curated suggestions for the best local happenings.' },
+                  { title: 'VIP Event Access', description: 'Entry to the most exclusive social events.' },
+                  { title: 'Cultural Experiences', description: 'Deep dives into local music and traditions.' },
+                  { title: 'Night Life Planning', description: 'Elite arrangements for your evening entertainment.' },
+                  { title: 'Custom Packages', description: 'Bespoke entertainment solutions for any occasion.' }
+                ] } },
+                { id: '3', type: 'cta', data: { title: 'Experience Fiezta Live', description: 'From Fuji to Jazz, we bring the best talent to your stage.', buttonLabel: 'Contact Us', buttonAction: 'mailto:info@fiezta.com' } }
               ]
             },
             {
@@ -1781,13 +1887,13 @@ export default function App() {
               slug: 'vlog',
               status: 'publish',
               blocks: [
-                { id: '1', type: 'hero', data: { title: 'Lifestyle Vlog', description: 'Behind the scenes of our most exclusive DMV events.', tagline: 'FIEZTA LIFE', buttonLabel: 'Watch Now' } },
-                { id: '2', type: 'video', data: { title: 'The Great Escape 2026', duration: '12:00' } },
-                { id: '3', type: 'grid', data: { title: 'Recent Stories', columns: 3, items: [
-                  { title: 'DC Jazz Night', description: 'A night to remember at the Mayflower.' },
-                  { title: 'Maryland Wedding', description: 'Waterfront elegance and soul.' },
-                  { title: 'Virginia Vineyard', description: 'A musical tour of VA wine country.' }
-                ] } }
+                { id: '1', type: 'hero', data: { title: 'Concierge on Camera', description: 'Dive into our vlogs for an inside look at our adventures, behind-the-scenes moments, and travel tips.', tagline: 'VISUAL JOURNEY', buttonLabel: 'Watch Our Channel', buttonAction: 'https://youtube.com/@fiezta' } },
+                { id: '2', type: 'video', data: { title: 'Things to do in Lagos', duration: 'Nike Art Gallery Tour', thumbnail: 'https://images.unsplash.com/photo-1514525253361-bee047320bca?auto=format&fit=crop&q=80' } },
+                { id: '3', type: 'grid', data: { title: 'Our Videos', subtitle: 'Join us on our latest visual adventures', columns: 2, items: [
+                  { title: 'NSFUSA 2024', description: 'NSFUSA Annual Soccer Tournament coverage.' },
+                  { title: 'Behind the Scenes', description: 'See how we curate the Fiezta experience.' }
+                ] } },
+                { id: '4', type: 'cta', data: { title: 'Stay Updated', description: 'Don’t forget to like and subscribe to stay up to date with new and exciting contents.', buttonLabel: 'Subscribe Now', buttonAction: 'mailto:info@fiezta.com' } }
               ]
             }
           ];
@@ -2106,9 +2212,9 @@ export default function App() {
                </button>
                
                <div className="hidden md:flex items-center gap-8">
-                 {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map(item => (
+                 {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map((item, idx) => (
                    <button 
-                     key={item.label} 
+                     key={`${item.label}-mobile-${idx}`} 
                      onClick={() => {
                         if (item.url === 'home' || item.url === '/') {
                           setCurrentPublicPage('home');
@@ -2235,9 +2341,9 @@ export default function App() {
             </div>
             
             <div className="hidden md:flex items-center gap-8">
-              {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map(item => (
+              {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map((item, idx) => (
                 <button 
-                  key={item.label} 
+                  key={`${item.label}-${idx}`} 
                   onClick={() => {
                     if (item.url.startsWith('/')) {
                       setCurrentPublicPage(item.url.substring(1));
@@ -2275,8 +2381,8 @@ export default function App() {
                     >
                        <h4 className="text-sm font-black text-slate-900 mb-4 px-2 uppercase tracking-widest">Notifications</h4>
                        <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
-                        {notifications.length > 0 ? notifications.map(n => (
-                          <div key={n.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        {notifications.length > 0 ? notifications.map((n, idx) => (
+                          <div key={`${n.id}-${idx}`} className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
                             <p className="text-xs font-bold text-slate-900">{n.title}</p>
                             <p className="text-[10px] text-slate-500 line-clamp-2">{n.message}</p>
                           </div>
@@ -2333,9 +2439,9 @@ export default function App() {
               className="md:hidden bg-white border-b border-slate-100 overflow-hidden"
             >
               <div className="flex flex-col p-6 gap-4">
-                {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map(item => (
+                {menus.find(m => m.location === 'header')?.items.sort((a, b) => a.order - b.order).map((item, idx) => (
                   <button 
-                    key={item.label} 
+                    key={`${item.label}-mobile-${idx}`} 
                     onClick={() => {
                       if (item.url.startsWith('/')) {
                         setCurrentPublicPage(item.url.substring(1));
@@ -2499,7 +2605,7 @@ export default function App() {
                 { title: "Safari in Serengeti", duration: "22:10", views: "8.9k", img: "https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&w=800&q=80" }
               ].map((vlog, idx) => (
                 <motion.div 
-                  key={idx}
+                  key={`${vlog.title}-${idx}`}
                   initial={{ opacity: 0, scale: 0.95 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: true }}
@@ -2539,7 +2645,7 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {packages.length > 0 ? packages.map((pkg, idx) => (
                 <motion.div 
-                  key={pkg.id}
+                  key={`${pkg.id}-${idx}`}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
@@ -2623,7 +2729,7 @@ export default function App() {
                 }
               ].map((service, idx) => (
                 <motion.div 
-                  key={idx}
+                  key={`service-item-${idx}`}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
@@ -2664,13 +2770,13 @@ export default function App() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {reviews.length > 0 ? reviews.map((review, idx) => (
-                <ReviewCard key={review.id} review={review} />
+                <ReviewCard key={`${review.id}-${idx}`} review={review} />
               )) : (
                 [
                   { customerName: "Adebola S.", content: "The concierge services provided are top-notch! Everything was seamless.", rating: 5 },
                   { customerName: "Marcus J.", content: "Perfect luxury vehicle rental for our executive team. Professional and timely.", rating: 5 },
                   { customerName: "Elena V.", content: "Their sightseeing tour planning made our DC trip unforgettable.", rating: 5 }
-                ].map((r, i) => <ReviewCard key={i} review={r} />)
+                ].map((r, i) => <ReviewCard key={`review-mock-${i}`} review={r} />)
               )}
             </div>
           </div>
@@ -2900,8 +3006,8 @@ export default function App() {
               <div>
                 <h5 className="font-bold text-slate-900 mb-6 uppercase tracking-widest text-xs">Explore</h5>
                 <ul className="space-y-4">
-                  {menus.find(m => m.location === 'footer-explore')?.items.sort((a, b) => a.order - b.order).map(item => (
-                    <li key={item.label}>
+                  {menus.find(m => m.location === 'footer-explore')?.items.sort((a, b) => a.order - b.order).map((item, idx) => (
+                    <li key={`${item.label}-${idx}`}>
                       <button 
                         onClick={() => {
                           if (item.url.startsWith('/')) {
@@ -2925,16 +3031,16 @@ export default function App() {
               <div>
                 <h5 className="font-bold text-slate-900 mb-6 uppercase tracking-widest text-xs">Company</h5>
                 <ul className="space-y-4">
-                  {menus.find(m => m.location === 'footer-company')?.items.sort((a, b) => a.order - b.order).map(item => (
-                    <li key={item.label}><a href={item.url} className="text-slate-500 hover:text-[#D4AF37] transition-colors">{item.label}</a></li>
+                  {menus.find(m => m.location === 'footer-company')?.items.sort((a, b) => a.order - b.order).map((item, idx) => (
+                    <li key={`${item.label}-${idx}`}><a href={item.url} className="text-slate-500 hover:text-[#D4AF37] transition-colors">{item.label}</a></li>
                   ))}
                 </ul>
               </div>
               <div>
                 <h5 className="font-bold text-slate-900 mb-6 uppercase tracking-widest text-xs">Support</h5>
                 <ul className="space-y-4">
-                  {menus.find(m => m.location === 'footer-support')?.items.sort((a, b) => a.order - b.order).map(item => (
-                    <li key={item.label}><a href={item.url} className="text-slate-500 hover:text-[#D4AF37] transition-colors">{item.label}</a></li>
+                  {menus.find(m => m.location === 'footer-support')?.items.sort((a, b) => a.order - b.order).map((item, idx) => (
+                    <li key={`${item.label}-${idx}`}><a href={item.url} className="text-slate-500 hover:text-[#D4AF37] transition-colors">{item.label}</a></li>
                   ))}
                 </ul>
               </div>
@@ -3173,6 +3279,12 @@ export default function App() {
                 label="Data Management" 
                 active={activeTab === 'crud'} 
                 onClick={() => setActiveTab('crud')} 
+              />
+              <SidebarItem 
+                icon={Zap} 
+                label="Database Maintenance" 
+                active={activeTab === 'maintenance'} 
+                onClick={() => setActiveTab('maintenance')} 
               />
             </>
           )}
@@ -3500,15 +3612,7 @@ export default function App() {
                     </div>
                     <div className="h-60 sm:h-80 w-full overflow-hidden">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={[
-                          { name: 'Jan', value: 4000 },
-                          { name: 'Feb', value: 3000 },
-                          { name: 'Mar', value: 5000 },
-                          { name: 'Apr', value: 4500 },
-                          { name: 'May', value: 6000 },
-                          { name: 'Jun', value: 5500 },
-                          { name: 'Jul', value: 7000 },
-                        ]}>
+                        <AreaChart data={getMonthlyRevenue()}>
                           <defs>
                             <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15}/>
@@ -3519,12 +3623,64 @@ export default function App() {
                           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />
                           <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} />
                           <Tooltip 
+                            formatter={(value: number) => [formatCurrency(value), 'Revenue']}
                             contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '12px' }}
                             itemStyle={{ fontWeight: 800, color: '#4f46e5' }}
                           />
                           <Area type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
                         </AreaChart>
                       </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100 h-fit">
+                    <div className="flex items-center justify-between mb-8">
+                      <h3 className="text-xl font-black tracking-tight text-slate-900">Bookings by Status</h3>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+                        <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Real-time</span>
+                      </div>
+                    </div>
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={getBookingStatusStats()}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={10}
+                            dataKey="value"
+                            nameKey="name"
+                          >
+                            {getBookingStatusStats().map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} 
+                                stroke="none" 
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                            itemStyle={{ fontWeight: 800, textTransform: 'capitalize' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      {getBookingStatusStats().map((stat, i) => (
+                        <div key={stat.name} className="flex items-center gap-2">
+                          <div 
+                            className="w-2 h-2 rounded-full" 
+                            style={{ backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][i % 5] }}
+                          />
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                            {stat.name}: {stat.value}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -3585,7 +3741,7 @@ export default function App() {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {bookings.slice(0, 5).map((booking, idx) => (
-                          <tr key={`${booking.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
+                          <tr key={`${booking.id}-${idx}-${booking.clientId}`} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
@@ -4167,8 +4323,8 @@ export default function App() {
                   entityName="Blog Post" 
                   collectionName="wp_posts" 
                   agencyId={agencyId || ''} 
-                  fields={wpPostFields as any}
-                  displayFields={['title', 'authorName', 'status', 'createdAt']}
+                  fields={postFields as any}
+                  displayFields={['title', 'status', 'createdAt']}
                   profile={profile}
                 />
               </motion.div>
@@ -4261,6 +4417,10 @@ export default function App() {
               </div>
             )}
 
+            {activeTab === 'maintenance' && (
+              <DatabaseMaintenance agencyId={agencyId!} profile={profile} />
+            )}
+
             {activeTab === 'site_settings' && (
               <motion.div 
                 key="site_settings"
@@ -4334,7 +4494,7 @@ export default function App() {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {auditLogs.length > 0 ? auditLogs.map((log, idx) => (
-                          <tr key={`${log.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
+                          <tr key={`${log.id}-${idx}-${log.timestamp}`} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
                               <span className="text-xs font-mono text-slate-500">{new Date(log.timestamp).toLocaleString()}</span>
                             </td>
@@ -4440,44 +4600,22 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {/* Coupons Section */}
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                        <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                          <Zap size={18} className="text-amber-500" />
-                          Active Coupons
-                        </h3>
-                        <button className="text-xs font-bold text-indigo-600 hover:underline">Create New</button>
-                      </div>
-                      <div className="divide-y divide-slate-100">
-                        {coupons.length > 0 ? coupons.map(coupon => (
-                          <div key={coupon.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-black text-lg">
-                                %
-                              </div>
-                              <div>
-                                <h4 className="font-bold text-slate-900">{coupon.code}</h4>
-                                <p className="text-xs text-slate-500">
-                                  {coupon.discountType === 'percentage' ? `${coupon.discountValue}% off` : `$${coupon.discountValue} off`} • 
-                                  Expires {new Date(coupon.expiryDate).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-xs font-bold text-slate-400 block mb-1">Redemptions</span>
-                              <span className="text-sm font-black text-slate-900">{coupon.usageCount} / {coupon.usageLimit || '∞'}</span>
-                            </div>
-                          </div>
-                        )) : (
-                          <div className="p-12 text-center text-slate-400">
-                            <p>No active coupons found.</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  <section className="lg:col-span-2">
+                    <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
+                      <Zap size={24} className="text-amber-500" />
+                      Discount Coupons
+                    </h3>
+                    <GenericCRUD 
+                      entityName="Coupon" 
+                      collectionName="coupons" 
+                      agencyId={agencyId || ''} 
+                      fields={couponFields as any}
+                      displayFields={['code', 'discountType', 'discountValue', 'expiryDate', 'isActive']}
+                      profile={profile}
+                    />
+                  </section>
 
+                  <div className="space-y-6">
                     {/* Affiliate Section */}
                     <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm p-8">
                       <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
@@ -4584,7 +4722,7 @@ export default function App() {
                           <div key={day} className="bg-slate-50 p-4 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">{day}</div>
                         ))}
                         {Array.from({ length: 31 }).map((_, i) => (
-                          <div key={i} className="bg-white min-h-[120px] p-3 hover:bg-slate-50 transition-colors cursor-pointer group">
+                          <div key={`day-${i}`} className="bg-white min-h-[120px] p-3 hover:bg-slate-50 transition-colors cursor-pointer group">
                             <span className="text-sm font-bold text-slate-400 group-hover:text-indigo-600 transition-colors">{i + 1}</span>
                             <div className="mt-2 space-y-1">
                               {calendarEvents.filter(e => new Date(e.start).getDate() === i + 1).map(event => (
@@ -4613,7 +4751,7 @@ export default function App() {
                           { title: 'Staff Meeting', time: 'Tomorrow, 10:00 AM', type: 'info' },
                           { title: 'Payment Due: Santorini Trip', time: 'In 3 days', type: 'payment' }
                         ].map((rem, idx) => (
-                          <div key={idx} className="flex gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                          <div key={`rem-${idx}`} className="flex gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
                             <div className={cn(
                               "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
                               rem.type === 'alert' ? "bg-rose-100 text-rose-600" : 

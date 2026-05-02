@@ -19,6 +19,7 @@ import {
   Shield,
   CheckCircle2,
   AlertCircle,
+  Zap,
   X
 } from 'lucide-react';
 import { 
@@ -161,8 +162,63 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
         
         setSelectedIds(new Set());
       } catch (error) {
-        console.error(`Error bulk deleting ${entityName}:`, error);
+        handleFirestoreError(error, OperationType.DELETE, collectionName);
       }
+    }
+  };
+
+  const handleCleanup = async () => {
+    if (!window.confirm(`Scan ${data.length} records for duplicates? This will identify entries with identical content and keep only the oldest one.`)) return;
+    
+    setLoading(true);
+    try {
+      const uniqueItems = new Map();
+      const duplicatesToDelete: string[] = [];
+
+      // Sort by creation date to keep the oldest
+      const sortedData = [...data].sort((a, b) => 
+        new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+      );
+
+      sortedData.forEach(item => {
+        // Create a unique key based on important content fields
+        const { id, createdAt, updatedAt, agencyId, ...content } = item;
+        
+        // Sort keys to ensure consistent hashing regardless of property order
+        const sortedKeys = Object.keys(content).sort();
+        const normalizedContent = sortedKeys.reduce((acc: any, key) => {
+          // Normalize values (trim strings, ensure consistent types)
+          const val = content[key];
+          acc[key] = typeof val === 'string' ? val.trim() : val;
+          return acc;
+        }, {});
+        
+        const hash = JSON.stringify(normalizedContent);
+        
+        if (uniqueItems.has(hash)) {
+          duplicatesToDelete.push(item.id);
+        } else {
+          uniqueItems.set(hash, item.id);
+        }
+      });
+
+      if (duplicatesToDelete.length === 0) {
+        alert("Success: No duplicate records found in this collection.");
+      } else {
+        if (window.confirm(`Found ${duplicatesToDelete.length} potential duplicates. Proceed with removing them?`)) {
+          const deletePromises = duplicatesToDelete.map(id => deleteDoc(doc(db, collectionName, id)));
+          await Promise.all(deletePromises);
+          
+          if (profile && agencyId) {
+            await logActivity(agencyId, profile.uid, profile.displayName, 'CLEANUP', entityName, 'multiple', `Removed ${duplicatesToDelete.length} duplicate items from ${collectionName}`);
+          }
+          alert(`Successfully cleaned up ${duplicatesToDelete.length} duplicate records.`);
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, collectionName);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -185,7 +241,7 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
       setEditingItem(null);
       setFormData({});
     } catch (error) {
-      console.error(`Error saving ${entityName}:`, error);
+      handleFirestoreError(error, editingItem ? OperationType.UPDATE : OperationType.CREATE, collectionName);
     }
   };
 
@@ -197,7 +253,7 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
           await logActivity(agencyId, profile.uid, profile.displayName, 'DELETE', entityName, id, `Deleted ${entityName}`);
         }
       } catch (error) {
-        console.error(`Error deleting ${entityName}:`, error);
+        handleFirestoreError(error, OperationType.DELETE, collectionName);
       }
     }
   };
@@ -255,8 +311,8 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                   className="text-[10px] sm:text-xs font-bold bg-white border border-indigo-200 rounded-lg px-2 py-1 text-indigo-600 focus:outline-none"
                 >
                   <option value="">Bulk Status</option>
-                  {fields.find(f => f.name === 'status')?.options?.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
+                  {fields.find(f => f.name === 'status')?.options?.map((opt, idx) => (
+                    <option key={`${opt}-${idx}`} value={opt}>{opt}</option>
                   ))}
                 </select>
               )}
@@ -270,6 +326,13 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
               </button>
             </motion.div>
           )}
+          <button 
+            onClick={handleCleanup}
+            className="flex-1 sm:flex-none flex items-center justify-center p-3 bg-white border border-slate-200 rounded-2xl text-amber-600 hover:bg-amber-50 transition-all shadow-sm"
+            title="Clean Repeated Data"
+          >
+            <Zap size={18} className="sm:w-5 sm:h-5" />
+          </button>
           <button className="flex-1 sm:flex-none flex items-center justify-center p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
             <Download size={18} className="sm:w-5 sm:h-5" />
           </button>
@@ -312,8 +375,8 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-600 focus:outline-none"
               >
                 <option value="">All Status</option>
-                {fields.find(f => f.name === 'status')?.options?.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
+                {fields.find(f => f.name === 'status')?.options?.map((opt, optIdx) => (
+                  <option key={`${opt}-${optIdx}`} value={opt}>{opt}</option>
                 ))}
               </select>
             )}
@@ -350,8 +413,8 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
                 </th>
-                {displayFields.map(field => (
-                  <th key={field} className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {displayFields.map((field, idx) => (
+                  <th key={`${field}-${idx}`} className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     {fields.find(f => f.name === field)?.label || field}
                   </th>
                 ))}
@@ -379,8 +442,8 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
                   </td>
-                  {displayFields.map(field => (
-                    <td key={field} className="px-6 py-4">
+                  {displayFields.map((field, idx) => (
+                    <td key={`${field}-${idx}`} className="px-6 py-4">
                       <span className="text-sm font-bold text-slate-700">
                         {typeof item[field] === 'boolean' ? (item[field] ? 'Yes' : 'No') : 
                          fields.find(f => f.name === field)?.type === 'json' ? 
@@ -538,8 +601,8 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
 
               <div className="flex-1 p-6 sm:p-8 space-y-6 overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {fields.map(field => (
-                    <div key={field.name} className={cn("space-y-1.5", (field.type === 'textarea' || field.type === 'json' || field.type === 'page-builder' || field.type === 'html') && "md:col-span-2")}>
+                  {fields.map((field, fIdx) => (
+                    <div key={`${field.name}-${fIdx}`} className={cn("space-y-1.5", (field.type === 'textarea' || field.type === 'json' || field.type === 'page-builder' || field.type === 'html') && "md:col-span-2")}>
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{field.label}</span>
                       <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                         {field.type === 'image' ? (
@@ -740,15 +803,15 @@ export const GenericCRUD: React.FC<GenericCRUDProps> = ({
                           className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
                         >
                           <option value="">Select Option</option>
-                          {field.options?.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
+                          {field.options?.map((opt, optIdx) => (
+                            <option key={`${opt}-${optIdx}`} value={opt}>{opt}</option>
                           ))}
                         </select>
                       ) : field.type === 'boolean' ? (
                         <div className="flex gap-4">
-                          {[true, false].map((val) => (
+                          {[true, false].map((val, vIdx) => (
                             <button
-                              key={String(val)}
+                              key={`${String(val)}-${vIdx}`}
                               type="button"
                               onClick={() => setFormData({...formData, [field.name]: val})}
                               className={cn(

@@ -317,7 +317,7 @@ export interface TravelPackage {
   status: 'active' | 'draft' | 'archived';
 }
 
-export type BookingStatus = 'draft' | 'pending' | 'processing' | 'approved' | 'completed' | 'cancelled';
+export type BookingStatus = 'draft' | 'pending' | 'confirmed' | 'processing' | 'approved' | 'completed' | 'cancelled';
 
 export interface Booking {
   id: string;

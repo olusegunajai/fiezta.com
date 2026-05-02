@@ -253,8 +253,8 @@ export const RoleManager: React.FC<RoleManagerProps> = ({ agencyId }) => {
                 Permissions ({role.permissions.length})
               </div>
               <div className="flex flex-wrap gap-1">
-                {role.permissions.slice(0, 3).map((p) => (
-                  <span key={p} className="px-2 py-0.5 bg-secondary text-secondary-foreground text-[10px] rounded-full">
+                {role.permissions.slice(0, 3).map((p, pIdx) => (
+                  <span key={`${p}-${pIdx}`} className="px-2 py-0.5 bg-secondary text-secondary-foreground text-[10px] rounded-full">
                     {AVAILABLE_PERMISSIONS.find(ap => ap.id === p)?.label || p}
                   </span>
                 ))}
@@ -326,9 +326,9 @@ export const RoleManager: React.FC<RoleManagerProps> = ({ agencyId }) => {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {AVAILABLE_PERMISSIONS.map((permission) => (
+                    {AVAILABLE_PERMISSIONS.map((permission, idx) => (
                       <button
-                        key={permission.id}
+                        key={`${permission.id}-${idx}`}
                         onClick={() => togglePermission(permission.id)}
                         className={`flex items-start gap-3 p-3 text-left border rounded-xl transition-all ${
                           currentRole?.permissions?.includes(permission.id)

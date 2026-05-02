@@ -207,9 +207,9 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {packages.map(p => (
+                      {packages.map((p, idx) => (
                         <button
-                          key={p.id}
+                          key={`${p.id}-${idx}`}
                           onClick={() => {
                             setSelectedPkg(p);
                             handleNext();
@@ -275,7 +275,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
                   <h3 className="text-xl font-bold text-white">Traveler Details</h3>
                   <div className="space-y-4">
                     {formData.travelerDetails.map((traveler, index) => (
-                      <div key={index} className="bg-zinc-800/50 border border-white/5 rounded-2xl p-6 space-y-4">
+                      <div key={`${index}-${traveler.email}`} className="bg-zinc-800/50 border border-white/5 rounded-2xl p-6 space-y-4">
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-amber-500 flex items-center gap-2">
                             <Users size={18} />
@@ -403,7 +403,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ pkg, user, onClose
                       <p className="text-xs font-bold text-zinc-500 uppercase mb-2">Travelers</p>
                       <div className="space-y-1">
                         {formData.travelerDetails.map((t, i) => (
-                          <p key={i} className="text-sm text-white">{t.name || 'Unnamed Traveler'} ({t.email || 'No Email'})</p>
+                          <p key={`summary-traveler-${i}`} className="text-sm text-white">{t.name || 'Unnamed Traveler'} ({t.email || 'No Email'})</p>
                         ))}
                       </div>
                     </div>

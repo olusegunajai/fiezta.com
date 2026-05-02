@@ -139,9 +139,9 @@ export const AIItineraryBuilder: React.FC<AIItineraryBuilderProps> = ({ user, on
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Travel Style</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {['solo', 'family', 'group', 'business'].map(type => (
+                  {['solo', 'family', 'group', 'business'].map((type, idx) => (
                     <button
-                      key={type}
+                      key={`${type}-${idx}`}
                       onClick={() => setTravelType(type as any)}
                       className={cn(
                         "px-3 py-2 rounded-xl text-xs font-bold capitalize transition-all border",
@@ -159,9 +159,9 @@ export const AIItineraryBuilder: React.FC<AIItineraryBuilderProps> = ({ user, on
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Budget Tier</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {['budget', 'mid-range', 'luxury'].map(tier => (
+                  {['budget', 'mid-range', 'luxury'].map((tier, idx) => (
                     <button
-                      key={tier}
+                      key={`${tier}-${idx}`}
                       onClick={() => setBudget(tier as any)}
                       className={cn(
                         "px-2 py-2 rounded-xl text-[10px] font-bold capitalize transition-all border",

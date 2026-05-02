@@ -232,9 +232,9 @@ export const InteractiveMap: React.FC<DestinationMapProps> = ({ packages, onSele
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               />
               
-              {markers.map((marker) => (
+              {markers.map((marker, mIdx) => (
                 <Marker 
-                  key={marker.id} 
+                  key={`${marker.id}-${mIdx}`} 
                   position={[marker.lat, marker.lng]}
                   eventHandlers={{
                     click: () => setSelectedDestination(marker),

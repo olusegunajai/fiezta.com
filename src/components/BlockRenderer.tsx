@@ -79,7 +79,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({ block, reviews = [
             <div className={cn("grid gap-8", data.columns === 4 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3")}>
               {data.items?.map((item: any, i: number) => (
                 <motion.div 
-                  key={i}
+                  key={`${item.title}-${i}`}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
@@ -137,7 +137,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({ block, reviews = [
             <h2 className="text-4xl font-black tracking-tighter text-slate-900 mb-12 text-center">{data.title || 'FAQ'}</h2>
             <div className="space-y-4">
               {faqs.map((faq, i) => (
-                <div key={i} className="bg-slate-50 p-6 rounded-2xl">
+                <div key={`${faq.id || i}-${i}`} className="bg-slate-50 p-6 rounded-2xl">
                   <h4 className="font-bold text-slate-900 mb-2">{faq.question}</h4>
                   <p className="text-slate-600 text-sm leading-relaxed">{faq.answer}</p>
                 </div>
